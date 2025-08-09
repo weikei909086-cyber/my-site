@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Pi Cashflow EDU — Rat Race to Freedom</title>
+<style>
+  :root{
+    --bg:#0c0f14; --panel:#121824; --muted:#9fb0c3; --hi:#ffd166; --ok:#46d39a; --bad:#ef476f; --ink:#eaf2ff;
+    --line:#1c2533; --btn:#1a2331; --btnHi:#233047;
+  }
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,Segoe UI,Roboto,Arial}
+  .wrap{max-width:1100px;margin:0 auto;padding:14px}
+  header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin:6px 0 12px}
+  .brand{font-weight:800;letter-spacing:.3px}
+  .pill{background:var(--panel);border:1px solid var(--line);padding:8px 12px;border-radius:999px;font-size:13px}
+  .btn{background:var(--btn);border:1px solid var(--line);padding:10px 14px;border-radius:10px;color:var(--ink);cursor:pointer}
+  .btn:hover{background:var(--btnHi)}
+  .btnHi{background:linear-gradient(180deg,#2b3a52,#1c2738);border:1px solid #2d3a51}
+  .row{display:grid;grid-template-columns:1.2fr .9fr; gap:14px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+  h2{font-size:18px;margin:0 0 10px}
+  h3{font-size:15px;margin:10px 0 6px;color:var(--muted)}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .chip{background:#0f1622;border:1px solid var(--line);padding:10px;border-radius:10px;text-align:center}
+  .chip b{display:block;font-size:18px;margin-top:2px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{padding:8px;border-bottom:1px dashed var(--line)}
+  th{color:var(--muted);font-weight:600;text-align:left}
+  .flex{display:flex;gap:8px;flex-wrap:wrap}
+  .stack{display:flex;flex-direction:column;gap:8px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .tag{font-size:12px;padding:4px 8px;border:1px solid var(--line);border-radius:999px;background:#0f1622;color:var(--muted)}
+  .hi{color:var(--hi)} .ok{color:var(--ok)} .bad{color:var(--bad)}
+  .muted{color:var(--muted)}
+  .deal{background:#0f1622;border:1px solid var(--line);padding:10px;border-radius:12px}
+  .deal h4{margin:0 0 4px}
+  input,select{background:#0e1520;border:1px solid var(--line);color:var(--ink);padding:10px;border-radius:10px;width:100%}
+  textarea{background:#0e1520;border:1px solid var(--line);color:var(--ink);padding:10px;border-radius:10px;width:100%;min-height:80px}
+  .foot{display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;margin-top:10px}
+  @media (max-width:930px){ .row{grid-template-columns:1fr} .stats{grid-template-columns:repeat(2,1fr)} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="flex" style="align-items:center;gap:10px">
+      <div class="brand">🐭 Pi Cashflow EDU</div>
+      <span class="pill" id="status">Not signed in</span>
+      <button class="btn" id="btnPi">Sign in with Pi</button>
+      <button class="btn" id="btnSave">Export Save</button>
+      <label class="btn" for="imp" title="Import Save JSON">Import Save<input id="imp" type="file" accept="application/json" style="display:none"></label>
+    </div>
+    <div class="flex">
+      <button class="btn" id="btnNew">New Game</button>
+      <button class="btn btnHi" id="btnNext">Advance Month ▶</button>
+    </div>
+  </header>
+
+  <div class="stats">
+    <div class="chip">Cash <b id="cash">$0</b></div>
+    <div class="chip">Passive Income <b id="passive">$0</b></div>
+    <div class="chip">Total Expenses <b id="expenses">$0</b></div>
+    <div class="chip">Freedom? <b id="freedom">No</b></div>
+  </div>
+
+  <div class="row" style="margin-top:12px">
+    <section class="panel">
+      <h2>Rat Race Board (turn-based)</h2>
+      <div class="flex">
+        <span class="tag">Month: <span id="month">1</span></span>
+        <span class="tag">Career: <span id="career">Junior Marketer</span></span>
+        <span class="tag">Salary: $<span id="salary">2500</span></span>
+        <span class="tag">Stash %: <span id="saveRate">10%</span></span>
+      </div>
+
+      <h3>This Month’s Card</h3>
+      <div id="card" class="deal">
+        <h4>—</h4>
+        <div class="muted">Click “Advance Month” to draw a card.</div>
+      </div>
+
+      <div class="foot">
+        <div class="flex">
+          <button class="btn" id="btnBuy">Buy / Invest</button>
+          <button class="btn" id="btnSell">Sell Asset</button>
+          <button class="btn" id="btnLoan">Take Loan</button>
+          <button class="btn" id="btnPayDebt">Pay Down Debt</button>
+        </div>
+        <div class="muted" id="tip">Tip: Grow assets that pay you monthly. Avoid doodads that only cost you.</div>
+      </div>
+    </section>
+
+    <aside class="panel stack">
+      <div>
+        <h2>Income Statement</h2>
+        <table>
+          <tbody id="tIncome"></tbody>
+          <tfoot><tr><th>Total Income</th><th id="totalIncome" style="text-align:right">$0</th></tr>
+                 <tr><th>Total Expenses</th><th id="totalOut" style="text-align:right">$0</th></tr>
+                 <tr><th>Cashflow</th><th id="net" style="text-align:right">$0</th></tr></tfoot>
+        </table>
+      </div>
+      <div>
+        <h2>Balance Sheet</h2>
+        <div class="grid2">
+          <div>
+            <h3>Assets</h3>
+            <table><tbody id="tAssets"></tbody></table>
+          </div>
+          <div>
+            <h3>Liabilities</h3>
+            <table><tbody id="tDebts"></tbody></table>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <section class="panel" style="margin-top:12px">
+    <h2>Actions</h2>
+    <div class="grid2">
+      <div>
+        <h3>Add Investment (manual)</h3>
+        <div class="grid2">
+          <input id="inName" placeholder="e.g., Rental Condo A">
+          <input id="inCost" type="number" placeholder="Buy Price (positive)">
+          <input id="inIncome" type="number" placeholder="Monthly Income (+) or Expense (-)">
+          <input id="inDebt" type="number" placeholder="Loan added (0 if none)">
+        </div>
+        <div class="foot"><button class="btn" id="addInv">Add Asset</button><span class="muted">Use for custom deals or outside income.</span></div>
+      </div>
+      <div>
+        <h3>Education Notes</h3>
+        <textarea id="notes" placeholder="Jot lessons learned, rules you follow, or goals for passive income."></textarea>
+        <div class="foot"><button class="btn" id="saveNotes">Save Notes</button><span class="muted">Saved locally with your game.</span></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+const KEY="pi_cashflow_edu_v1";
+
+const defaultState = () => ({
+  month:1,
+  user:{piUid:null, username:"Guest"},
+  career:"Junior Marketer",
+  salary:2500,
+  saveRate:0.10,
+  cash:3000,
+  assets:[],          // {id,name,cost,monthly}
+  liabilities:[],     // {id,name,balance,rate,monthly}
+  history:[],
+  notes:"",
+  lastCard:null,
+  fastTrack:false
+});
+
+let S = load();
+function load(){
+  try{ return Object.assign(defaultState(), JSON.parse(localStorage.getItem(KEY) || "{}")); }
+  catch(_){ return defaultState(); }
+}
+function persist(){ localStorage.setItem(KEY, JSON.stringify(S)); }
+
+/* Optional Pi SDK */
+const Pi = (window.Pi) ? window.Pi : null;
+if(Pi){ try{ Pi.init({version:"2.0"}); }catch(_){} }
+
+const $ = id => document.getElementById(id);
+const money = n => "$" + (Math.round(n).toLocaleString());
+
+function recompute(){
+  const incRows = [{k:"Salary", v:S.salary}].concat(S.assets.filter(a=>a.monthly>0).map(a=>({k:a.name, v:a.monthly})));
+  const expRows = S.assets.filter(a=>a.monthly<0).map(a=>({k:a.name, v:Math.abs(a.monthly)})).concat(S.liabilities.map(d=>({k:d.name+" (loan)", v:d.monthly})));
+  const totalInc = incRows.reduce((a,b)=>a+b.v,0);
+  const totalOut = expRows.reduce((a,b)=>a+b.v,0);
+  const net = totalInc - totalOut;
+
+  $("cash").textContent = money(S.cash);
+  const passive = S.assets.filter(a=>a.monthly>0).reduce((a,b)=>a+b.monthly,0);
+  $("passive").textContent = money(passive);
+  $("expenses").textContent = money(totalOut);
+  $("freedom").innerHTML = (passive>=totalOut && totalOut>0) ? "<span class='ok'>YES</span>" : "No";
+
+  $("tIncome").innerHTML = incRows.map(r=>`<tr><td>${r.k}</td><td style="text-align:right">${money(r.v)}</td></tr>`).join("") || "<tr><td class='muted'>—</td><td></td></tr>";
+  $("tAssets").innerHTML = S.assets.map(a=>`<tr><td>${a.name}</td><td style="text-align:right">${money(a.monthly)} / mo</td></tr>`).join("") || "<tr><td class='muted'>—</td></tr>";
+  $("tDebts").innerHTML = S.liabilities.map(d=>`<tr><td>${d.name} — ${money(d.balance)} @ ${(d.rate*100).toFixed(1)}%</td><td style='text-align:right'>${money(d.monthly)}</td></tr>`).join("") || "<tr><td class='muted'>—</td></tr>";
+
+  $("totalIncome").textContent = money(totalInc);
+  $("totalOut").textContent = money(totalOut);
+  $("net").textContent = money(net);
+
+  $("month").textContent = S.month;
+  $("career").textContent = S.career;
+  $("salary").textContent = S.salary;
+  $("saveRate").textContent = Math.round(S.saveRate*100)+"%";
+  persist();
+  return {totalInc,totalOut,net,passive};
+}
+
+function toast(msg){
+  const t = document.createElement("div");
+  t.textContent = msg;
+  t.style.cssText = "position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#0f1622;border:1px solid #263149;padding:10px 14px;border-radius:999px;color:#eaf2ff;z-index:9999;opacity:0;transition:opacity .15s";
+  document.body.appendChild(t);
+  setTimeout(()=>t.style.opacity=1,10);
+  setTimeout(()=>{t.style.opacity=0;setTimeout(()=>t.remove(),150);},2300);
+}
+
+const Cards = {
+  smallOpp:[
+    ["Dividend Stock", 500, 15, "Steady blue-chip dividend."],
+    ["Peer Lending", 400, 18, "Diversified microloans."],
+    ["REIT Fraction", 800, 30, "Property trust payout."],
+    ["Vending Side Biz", 1500, 65, "Two machines at a gym."]
+  ],
+  bigOpp:[
+    ["Rental Condo", 20000, 450, "Buy-and-rent in midtown."],
+    ["Laundry Shop", 30000, 700, "Self-serve with attendants."],
+    ["Food Kiosk", 12000, 260, "Mall footfall is decent."]
+  ],
+  doodad:[
+    ["New Phone", -900, 0, "Latest flagship. Shiny, not an asset."],
+    ["Holiday Trip", -1500, 0, "Great memories, zero cashflow."],
+    ["Car Rims", -800, 0, "Looks cool, drains wallet."]
+  ],
+  market:[
+    ["Rent Up", 0, 0, "Rental market up. +10% rent on properties this month.", {type:"rentUp"}],
+    ["Repair Bills", -300, 0, "Unexpected fixes on assets.", {type:"repair"}],
+    ["Rate Cut", 0, 0, "Loan interest -0.5% for new loans (temp).", {type:"rateCut"}]
+  ]
+};
+
+function drawCard(){
+  const r = Math.random();
+  let type, pool;
+  if(r < 0.45){ type="Small Opportunity"; pool=Cards.smallOpp; }
+  else if(r < 0.7){ type="Doodad"; pool=Cards.doodad; }
+  else if(r < 0.88){ type="Big Opportunity"; pool=Cards.bigOpp; }
+  else { type="Market"; pool=Cards.market; }
+  const raw = pool[Math.floor(Math.random()*pool.length)];
+  const card = {type, name:raw[0], cost:raw[1], monthly:raw[2], text:raw[3], meta:raw[4]||null};
+  S.lastCard = card;
+  updateCardUI(card);
+  persist();
+  return card;
+}
+
+function updateCardUI(c){
+  const box = $("card");
+  box.innerHTML = `<h4>${c.type}: ${c.name}</h4>
+    <div>${c.text}</div>
+    <div style="margin-top:6px" class="muted">${c.cost<0? "Cost: "+money(Math.abs(c.cost)) : "Buy-in: "+money(c.cost)} • Monthly impact: <b>${money(c.monthly)}</b></div>
+    <div style="margin-top:8px" class="flex"><span class="tag">You can choose to act or pass.</span></div>`;
+  if(c.type.includes("Opportunity")) $("tip").textContent = "Evaluate ROI: monthly cashflow ÷ cash invested. Aim for positive cashflow assets.";
+  else if(c.type==="Doodad") $("tip").textContent = "Doodads take money from your pocket each month. Keep them rare and small.";
+  else $("tip").textContent = "Market events change parameters. Adapt without breaking your cash position.";
+}
+
+function nextMonth(){
+  const {totalOut} = recompute();
+  S.cash += S.salary;          // salary in
+  S.cash -= totalOut;          // pay expenses/loans
+  // accrue interest (simple)
+  S.liabilities.forEach(d=>{
+    const interest = (d.rate/12)*d.balance;
+    d.balance += interest;
+  });
+  S.month++;
+  const c = drawCard();
+  if(c.type==="Doodad"){ S.cash += c.cost; } // cost negative
+  if(c.type==="Market" && c.meta){
+    if(c.meta.type==="repair"){ S.cash -= 300; toast("🔧 Repair bills: -$300"); }
+  }
+  recompute();
+  persist();
+}
+
+/* Actions */
+$("btnBuy").onclick = () => {
+  let c = S.lastCard;
+  if(!c || !(c.type.includes("Opportunity"))) { toast("No active opportunity. Advance month to draw a card."); return; }
+  if(S.cash < c.cost){ toast("Not enough cash. Consider a loan or cheaper deal."); return; }
+  S.cash -= c.cost;
+  S.assets.push({id:crypto.randomUUID(), name:c.name, cost:c.cost, monthly:c.monthly});
+  toast("✅ Bought: "+c.name+" • "+money(c.monthly)+"/mo");
+  recompute();
+};
+$("btnSell").onclick = () => {
+  if(S.assets.length===0){ toast("No assets to sell."); return; }
+  const idx = prompt("Enter asset # to sell (1.."+S.assets.length+"):\n"+S.assets.map((a,i)=> (i+1)+". "+a.name+" — "+money(a.monthly)+"/mo").join("\n"));
+  const k = parseInt(idx||"0")-1; if(!(k>=0 && k<S.assets.length)) return;
+  const a = S.assets.splice(k,1)[0];
+  const resale = Math.round(a.cost*0.9);
+  S.cash += resale;
+  toast("💸 Sold "+a.name+" for "+money(resale));
+  recompute();
+};
+$("btnLoan").onclick = () => {
+  const amt = parseFloat(prompt("Loan amount (principal):", "5000")||"0");
+  if(!(amt>0)) return;
+  const rate = 0.12; // 12% APR
+  const monthly = Math.round((rate/12)*amt + (amt/60)); // simple approx 5y amortization
+  S.cash += amt;
+  S.liabilities.push({id:crypto.randomUUID(), name:"Bank Loan", balance:amt, rate, monthly});
+  toast("🏦 Loan received: "+money(amt));
+  recompute();
+};
+$("btnPayDebt").onclick = () => {
+  if(S.liabilities.length===0){ toast("No debts to pay."); return; }
+  const idx = prompt("Enter debt # to pay down (1.."+S.liabilities.length+"):\n"+S.liabilities.map((d,i)=> (i+1)+". "+d.name+" — bal "+money(d.balance)).join("\n"));
+  const k = parseInt(idx||"0")-1; if(!(k>=0 && k<S.liabilities.length)) return;
+  const d = S.liabilities[k];
+  const amt = parseFloat(prompt("Payment amount (<= cash)", String(Math.min(S.cash, Math.round(d.balance))))||"0");
+  if(!(amt>0) || amt>S.cash) return;
+  S.cash -= amt;
+  d.balance -= amt;
+  if(d.balance<=0){ S.liabilities.splice(k,1); toast("🎉 Debt fully paid!"); }
+  else { toast("⬇️ Paid down "+money(amt)); }
+  recompute();
+};
+
+$("addInv").onclick = () => {
+  const name = $("inName").value.trim();
+  const cost = parseFloat($("inCost").value||"0");
+  const monthly = parseFloat($("inIncome").value||"0");
+  const debt = parseFloat($("inDebt").value||"0");
+  if(!name) return toast("Name required.");
+  if(cost>0 && S.cash<cost) return toast("Not enough cash for purchase price.");
+  S.cash -= Math.max(0,cost);
+  if(debt>0){ S.liabilities.push({id:crypto.randomUUID(), name:"Custom Loan", balance:debt, rate:0.12, monthly:Math.round((0.12/12)*debt + (debt/60))}); S.cash += debt; }
+  S.assets.push({id:crypto.randomUUID(), name, cost:Math.max(0,cost), monthly});
+  $("inName").value = $("inCost").value = $("inIncome").value = $("inDebt").value = "";
+  toast("✅ Added asset: "+name);
+  recompute();
+};
+
+$("saveNotes").onclick = () => { S.notes = $("notes").value; persist(); toast("📝 Notes saved."); };
+
+// Export / Import
+$("btnSave").onclick = () => {
+  const blob = new Blob([JSON.stringify(S,null,2)], {type:"application/json"});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+  a.download = "pi-cashflow-save.json"; a.click(); URL.revokeObjectURL(a.href);
+};
+$("imp").addEventListener("change", ev => {
+  const f = ev.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = () => { try{ S = Object.assign(defaultState(), JSON.parse(r.result)); persist(); initUI(); toast("✅ Save imported."); }catch(e){ alert("Import failed."); } };
+  r.readAsText(f);
+});
+
+// New game
+$("btnNew").onclick = () => { if(confirm("Start a new game? This overwrites your current progress.")){ S = defaultState(); persist(); initUI(); } };
+$("btnNext").onclick = () => nextMonth();
+
+// Pi sign-in (optional)
+$("btnPi").onclick = async () => {
+  if(!Pi){ toast("Open in Pi Browser to sign in."); return; }
+  try{
+    const scopes = ["username"]; // no payments in this MVP
+    const user = await Pi.authenticate(scopes, onIncomplete);
+    S.user.piUid = user.uid;
+    S.user.username = user.username || "Pioneer";
+    $("status").textContent = "Signed in as @"+S.user.username;
+    persist();
+  }catch(e){ alert("Pi sign-in failed or was cancelled."); }
+};
+function onIncomplete(e){ console.log("Pi auth incomplete:", e); }
+
+function initUI(){
+  $("status").textContent = S.user.username ? ("Signed in as "+S.user.username) : "Not signed in";
+  $("notes").value = S.notes || "";
+  if(S.lastCard) updateCardUI(S.lastCard);
+  recompute();
+}
+initUI();
+</script>
+</body>
+</html>
