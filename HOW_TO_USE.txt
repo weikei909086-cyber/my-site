@@ -1,0 +1,12 @@
+HOW TO USE (TL;DR)
+--------------------------------
+1) In the Pi Dev Portal, whitelist your domain:
+   https://weikei909086-cyber.github.io
+2) Upload `pi-auth.js` to the repo root (same folder as index.html).
+3) Edit `index.html` and add, before </body>:
+
+   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+   <script src="./pi-auth.js"></script>
+
+4) Make sure your sign-in button has id="pi-signin".
+5) Commit and open your site in Pi Browser. Tap the button to authenticate.
