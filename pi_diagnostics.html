@@ -1,0 +1,69 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pi SDK Diagnostics</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 20px; line-height: 1.5; }
+    code, pre { background:#f4f4f4; padding: 4px 6px; border-radius: 4px; }
+    .ok { color: #0a7; font-weight: 700; }
+    .bad { color: #c00; font-weight: 700; }
+    .card { border:1px solid #ddd; border-radius:12px; padding:16px; margin:14px 0; }
+    button { padding:10px 14px; border-radius:10px; border:1px solid #ccc; }
+  </style>
+</head>
+<body>
+  <h1>Pi SDK Diagnostics</h1>
+  <div class="card">
+    <div>User Agent:</div>
+    <pre id="ua"></pre>
+  </div>
+
+  <div class="card">
+    <div>Pi Browser detected? <span id="isPi" class="bad">checking…</span></div>
+    <div>Pi SDK loaded? <span id="hasSDK" class="bad">checking…</span></div>
+  </div>
+
+  <div class="card">
+    <button id="tryInit">Try Pi.init()</button>
+    <pre id="log"></pre>
+  </div>
+
+  <script>
+    const ua = navigator.userAgent || '';
+    document.getElementById('ua').textContent = ua;
+
+    const isPi = /PiBrowser/i.test(ua);
+    document.getElementById('isPi').textContent = isPi ? 'YES' : 'NO';
+    document.getElementById('isPi').className = isPi ? 'ok' : 'bad';
+
+    function updateSDKStatus() {
+      const ok = !!window.Pi;
+      const el = document.getElementById('hasSDK');
+      el.textContent = ok ? 'YES' : 'NO';
+      el.className = ok ? 'ok' : 'bad';
+    }
+
+    const s = document.createElement('script');
+    s.src = 'https://sdk.minepi.com/pi-sdk.js';
+    s.onload = () => { updateSDKStatus(); };
+    s.onerror = () => {
+      document.getElementById('hasSDK').textContent = 'FAILED TO LOAD';
+      document.getElementById('hasSDK').className = 'bad';
+    };
+    document.head.appendChild(s);
+
+    document.getElementById('tryInit').onclick = () => {
+      const log = document.getElementById('log');
+      if (!window.Pi) { log.textContent = 'Pi SDK not loaded.'; return; }
+      try {
+        Pi.init({ version: '2.0' });
+        log.textContent = 'Pi.init() OK. window.Pi keys: ' + Object.keys(Pi).join(', ');
+      } catch (e) {
+        log.textContent = 'Pi.init() error: ' + e;
+      }
+    };
+  </script>
+</body>
+</html>
