@@ -40,6 +40,7 @@
   .foot{display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;margin-top:10px}
   @media (max-width:930px){ .row{grid-template-columns:1fr} .stats{grid-template-columns:repeat(2,1fr)} }
 </style>
+<script src="https://sdk.minepi.com/pi-sdk.js"></script>
 </head>
 <body>
 <div class="wrap">
@@ -138,6 +139,7 @@
     </div>
   </section>
 </div>
+
 
 <script>
 const KEY="pi_cashflow_edu_v1";
@@ -357,8 +359,9 @@ $("btnNew").onclick = () => { if(confirm("Start a new game? This overwrites your
 $("btnNext").onclick = () => nextMonth();
 
 // Pi sign-in (optional)
-$("btnPi").onclick = async () => {
-  if(!Pi){ toast("Open in Pi Browser to sign in."); return; }
+$("btnPi").onclick = async () => { return doPiAuth(); /* patched */
+
+  
   try{
     const scopes = ["username"]; // no payments in this MVP
     const user = await Pi.authenticate(scopes, onIncomplete);
@@ -370,6 +373,29 @@ $("btnPi").onclick = async () => {
 };
 function onIncomplete(e){ console.log("Pi auth incomplete:", e); }
 
+// --- Bypass UA check: always try to auth if SDK is present ---
+const getPi = () => (window.Pi || null);
+async function doPiAuth(){
+  const PiRef = getPi();
+  if(!PiRef){
+    alert("Pi SDK not available. Open this page in the Pi Browser app, then reload.");
+    return;
+  }
+  try{
+    try{ PiRef.init({version:"2.0"}); }catch(_){}
+    const scopes = ["username"];
+    const user = await PiRef.authenticate(scopes, onIncomplete);
+    S.user.piUid = user.uid;
+    S.user.username = user.username || "Pioneer";
+    $("status").textContent = "Signed in as @"+S.user.username;
+    persist();
+  }catch(e){
+    console.error("Pi auth error:", e);
+    alert("Pi sign-in failed: " + (e && e.message ? e.message : e));
+  }
+}
+
+
 function initUI(){
   $("status").textContent = S.user.username ? ("Signed in as "+S.user.username) : "Not signed in";
   $("notes").value = S.notes || "";
@@ -377,6 +403,18 @@ function initUI(){
   recompute();
 }
 initUI();
+</script>
+<script>
+(function(){
+  const bar = document.createElement('div');
+  bar.id = 'piWarn';
+  bar.style.cssText = "position:fixed;top:0;left:0;right:0;background:#2b3446;color:#ffd166;border-bottom:1px solid #3a465c;padding:8px 12px;font:600 13px/1.3 system-ui, -apple-system, Segoe UI; z-index:99999; text-align:center;";
+  function show(){ if(!document.getElementById('piWarn')) document.body.appendChild(bar); }
+  function hide(){ const n = document.getElementById('piWarn'); if(n) n.remove(); }
+  function update(){ if(window.Pi){ hide(); } else { show(); bar.textContent = "Tip: Open this page in the Pi Browser app and make sure you are signed in, then tap ‘Sign in with Pi’."; } }
+  setTimeout(update, 300);
+  window.addEventListener('load', update);
+})();
 </script>
 </body>
 </html>
