@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Pi Payment Demo (No-Server)</title>
+<title>Pi Auth Diagnostics</title>
 <style>
   :root{--ok:#d4f7d4;--bad:#ffe0e0;--muted:#666;}
   body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:20px;line-height:1.45}
@@ -19,7 +19,7 @@
 <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 </head>
 <body>
-  <h1>Pi Payment Demo – No Server</h1>
+  <h1>Pi Auth Diagnostics</h1>
 
   <div id="status" class="row">
     <span id="sdk">SDK: …</span>
@@ -29,8 +29,8 @@
 
   <div class="row">
     <button id="openInPi" style="display:none">Open in Pi Browser</button>
-    <button id="signInBtn" disabled>Sign in with Pi</button>
-    <button id="payBtn" disabled>Test Payment</button>
+    <button id="signUserBtn" disabled>Sign in (username only)</button>
+    <button id="signPayBtn" disabled>Sign in (username + payments)</button>
   </div>
 
   <div class="row hint">
@@ -40,7 +40,7 @@
   <div id="log" class="row"><pre></pre></div>
 
   <p class="hint">
-    Tip: Your site’s exact domain must be added in <b>Pi Developer Portal → App → Web</b> for authentication to work.
+    Tip: Add this domain in <b>Pi Developer Portal → App → Web</b>. If <b>username only</b> works but <b>username + payments</b> fails, enable the Payments product / scopes in the portal.
   </p>
 
 <script>
@@ -54,8 +54,8 @@
   const sdkTag = document.getElementById('sdk');
   const browserTag = document.getElementById('browser');
   const domainTag = document.getElementById('domain');
-  const signInBtn = document.getElementById('signInBtn');
-  const payBtn = document.getElementById('payBtn');
+  const signUserBtn = document.getElementById('signUserBtn');
+  const signPayBtn = document.getElementById('signPayBtn');
   const openBtn = document.getElementById('openInPi');
   document.getElementById('ua').textContent = navigator.userAgent;
   domainTag.textContent = 'Domain: ' + location.hostname;
@@ -97,43 +97,23 @@
       return;
     }
 
-    // Enable sign-in whenever SDK is ready.
-    signInBtn.disabled = false;
+    signUserBtn.disabled = false;
+    signPayBtn.disabled = false;
 
-    let currentUser = null;
-
-    signInBtn.addEventListener('click', async () => {
+    async function doAuth(scopes){
       try{
-        const scopes = ['username','payments'];
-        currentUser = await Pi.authenticate(scopes, (payment)=>log('Found incomplete payment:', payment));
-        log('Signed in as', currentUser && currentUser.user && currentUser.user.username);
-        alert('Signed in as ' + (currentUser.user && currentUser.user.username));
-        payBtn.disabled = false;
+        const res = await Pi.authenticate(scopes, (payment)=>log('Incomplete payment:', payment));
+        log('Auth success. Scopes:', scopes, 'User:', res && res.user && res.user.username);
+        alert('Signed in OK (' + scopes.join(',') + '): ' + (res.user && res.user.username));
       }catch(e){
-        // Show most common causes for failures
         const msg = (e && e.message) ? e.message : String(e);
-        log('Auth error:', msg);
-        alert('Auth error: ' + msg + '\n\nCommon causes:\n• Not opened inside Pi Browser\n• Domain not added in Pi Developer Portal (must match: ' + location.hostname + ')\n• App not approved for this domain yet');
+        log('Auth error (' + scopes.join(',') + '):', msg);
+        alert('Auth error (' + scopes.join(',') + '): ' + msg);
       }
-    });
+    }
 
-    payBtn.addEventListener('click', async ()=>{
-      try{
-        await Pi.createPayment({
-          amount: 1,
-          memo: "Test Payment (no-server)",
-          metadata: { demo: true, ts: Date.now() }
-        }, {
-          onReadyForServerApproval: (paymentId)=>{ log('Ready for approval:', paymentId); },
-          onReadyForServerCompletion: (paymentId)=>{ log('Ready for completion:', paymentId); },
-          onCancel: (paymentId)=>{ log('Cancelled:', paymentId); },
-          onError: (error, payment)=>{ log('Payment error:', error, payment); }
-        });
-      }catch(e){
-        log('createPayment error:', e);
-        alert('createPayment error: ' + (e && e.message ? e.message : e));
-      }
-    });
+    signUserBtn.addEventListener('click', ()=>doAuth(['username']));
+    signPayBtn.addEventListener('click', ()=>doAuth(['username','payments']));
   }
 
   if (document.readyState === 'loading'){
