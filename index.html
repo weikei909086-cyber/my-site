@@ -1,96 +1,64 @@
 
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Pi Cashflow EDU</title>
-  <link rel="stylesheet" href="styles.css" />
-</head>
-<body style="background-color:#0f1622;color:white;font-family:sans-serif;padding:20px;">
-  <h1>🐭 Pi Cashflow EDU</h1>
-  <p>Signed in as Pioneer</p>
-
-  <button onclick="signInWithPi()">Sign in with Pi</button>
-  <button id="btnPay">Test Payment (0.01π)</button>
-
-  <div style="margin-top:20px;">
-    <strong>Cash:</strong> $3,000<br>
-    <strong>Passive Income:</strong> $0<br>
-    <strong>Total Expenses:</strong> $0<br>
-    <strong>Freedom?</strong> No
-  </div>
-
+  <meta charset="UTF-8">
+  <title>Pi Payment Demo</title>
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+</head>
+<body>
+  <h1>Pi Payment Demo - No Server Mode</h1>
+  <button id="signInButton">Sign in with Pi</button>
+  <button id="payButton" disabled>Test Payment</button>
+
   <script>
-    function toast(msg){
-      try{
-        const t = document.createElement("div");
-        t.textContent = msg;
-        t.style.cssText = "position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#0f1622;border:1px solid #263149;padding:10px 14px;border-radius:999px;color:#eaf2ff;z-index:9999;opacity:0;transition:opacity .15s";
-        document.body.appendChild(t);
-        setTimeout(()=>t.style.opacity=1,10);
-        setTimeout(()=>{t.style.opacity=0;setTimeout(()=>t.remove(),150);},2600);
-      }catch(_){}
-    }
+    Pi.init({ version: "2.0", sandbox: true });
 
-    function ensurePiInit(){
-      const PiRef = window.Pi || null;
-      if(!PiRef){ alert("Pi SDK not available. Open this page in the Pi Browser app."); return null; }
-      try{ PiRef.init({version:"2.0"}); }catch(_){}
-      return PiRef;
-    }
+    const signInButton = document.getElementById('signInButton');
+    const payButton = document.getElementById('payButton');
+    let currentUser = null;
 
-    async function signInWithPi(){
-      if(!window.Pi){ alert("Open in Pi Browser."); return; }
-      try{
-        Pi.init({version:"2.0"});
-        const auth = await Pi.authenticate(["username","payments"], (p)=>console.log("incomplete payment", p));
-        toast("Signed in as " + auth.user.username);
-      }catch(e){
-        console.error(e);
-        alert("Pi sign-in failed.");
+    signInButton.addEventListener('click', async () => {
+      try {
+        const scopes = ['username', 'payments'];
+        currentUser = await Pi.authenticate(scopes, onIncompletePaymentFound);
+        alert(`Signed in as ${currentUser.user.username}`);
+        payButton.disabled = false;
+      } catch (err) {
+        console.error(err);
       }
-    }
+    });
 
-    (function(){
-      const btn = document.getElementById("btnPay");
-      if(!btn) return;
-      btn.addEventListener("click", async () => {
-        const PiRef = ensurePiInit();
-        if(!PiRef) return;
-        try{
-          await PiRef.createPayment(
-            {
-              amount: 0.01,
-              memo: "Pi Cashflow EDU test payment",
-              metadata: { source: "cashflow-edu", mode: "test" }
-            },
-            {
-              onReadyForServerApproval(paymentId){
-                console.log("onReadyForServerApproval", paymentId);
-                toast("Payment created. ID: " + paymentId);
-              },
-              onReadyForServerCompletion(paymentId, txid){
-                console.log("onReadyForServerCompletion", paymentId, txid);
-                toast("Payment completed. txid: " + (txid || "—"));
-              },
-              onCancel(paymentId){
-                console.log("onCancel", paymentId);
-                toast("Payment cancelled.");
-              },
-              onError(error, payment){
-                console.error("Payment error", error, payment);
-                alert("Payment error: " + (error?.message || error));
-              }
-            }
-          );
-        }catch(e){
-          console.error("createPayment error", e);
-          alert("Could not start payment: " + (e?.message || e));
-        }
-      });
-    })();
+    payButton.addEventListener('click', async () => {
+      try {
+        const payment = await Pi.createPayment({
+          amount: 1,
+          memo: "Test Payment",
+          metadata: { orderId: 1234 }
+        }, {
+          onReadyForServerApproval: paymentId => {
+            alert(`Payment ready for approval: ${paymentId}`);
+          },
+          onReadyForServerCompletion: paymentId => {
+            alert(`Payment ready for completion: ${paymentId}`);
+          },
+          onCancel: paymentId => {
+            alert(`Payment cancelled: ${paymentId}`);
+          },
+          onError: (error, payment) => {
+            console.error(error);
+            alert("Payment error: " + error);
+          }
+        });
+        console.log(payment);
+      } catch (err) {
+        console.error(err);
+      }
+    });
+
+    function onIncompletePaymentFound(payment) {
+      console.log("Incomplete payment found:", payment);
+    }
   </script>
 </body>
 </html>
