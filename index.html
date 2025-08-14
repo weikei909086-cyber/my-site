@@ -1,64 +1,140 @@
-
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Pi Payment Demo</title>
-  <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pi Payment Demo (No-Server)</title>
+<style>
+ body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:20px;line-height:1.4}
+ .row{margin:10px 0}
+ button{padding:10px 14px;margin-right:8px;border:1px solid #999;border-radius:8px;background:#fafafa}
+ #status span{display:inline-block;margin-right:14px;padding:4px 8px;border-radius:6px;background:#eee}
+ .ok{background:#d4f7d4}
+ .bad{background:#ffe0e0}
+ .hint{font-size:14px;color:#444}
+ pre{white-space:pre-wrap;background:#f6f8fa;padding:10px;border-radius:8px}
+</style>
+<script src="https://sdk.minepi.com/pi-sdk.js"></script>
 </head>
 <body>
-  <h1>Pi Payment Demo - No Server Mode</h1>
-  <button id="signInButton">Sign in with Pi</button>
-  <button id="payButton" disabled>Test Payment</button>
+  <h1>Pi Payment Demo – No Server</h1>
 
-  <script>
-    Pi.init({ version: "2.0", sandbox: true });
+  <div id="status" class="row">
+    <span id="sdk">SDK: …</span>
+    <span id="browser">Pi Browser: …</span>
+  </div>
 
-    const signInButton = document.getElementById('signInButton');
-    const payButton = document.getElementById('payButton');
-    let currentUser = null;
+  <div class="row">
+    <button id="openInPi" style="display:none">Open in Pi Browser</button>
+    <button id="signInBtn" disabled>Sign in with Pi</button>
+    <button id="payBtn" disabled>Test Payment</button>
+  </div>
 
-    signInButton.addEventListener('click', async () => {
-      try {
-        const scopes = ['username', 'payments'];
-        currentUser = await Pi.authenticate(scopes, onIncompletePaymentFound);
-        alert(`Signed in as ${currentUser.user.username}`);
-        payButton.disabled = false;
-      } catch (err) {
-        console.error(err);
-      }
-    });
+  <div id="log" class="row"><pre></pre></div>
 
-    payButton.addEventListener('click', async () => {
-      try {
-        const payment = await Pi.createPayment({
-          amount: 1,
-          memo: "Test Payment",
-          metadata: { orderId: 1234 }
-        }, {
-          onReadyForServerApproval: paymentId => {
-            alert(`Payment ready for approval: ${paymentId}`);
-          },
-          onReadyForServerCompletion: paymentId => {
-            alert(`Payment ready for completion: ${paymentId}`);
-          },
-          onCancel: paymentId => {
-            alert(`Payment cancelled: ${paymentId}`);
-          },
-          onError: (error, payment) => {
-            console.error(error);
-            alert("Payment error: " + error);
-          }
-        });
-        console.log(payment);
-      } catch (err) {
-        console.error(err);
-      }
-    });
+  <p class="hint">
+    If the <b>Sign in with Pi</b> button stays disabled, you are probably not inside the Pi Browser.
+    Open the Pi mobile app → Menu ☰ → <b>Pi Browser</b> → paste your URL and try again.
+  </p>
 
-    function onIncompletePaymentFound(payment) {
-      console.log("Incomplete payment found:", payment);
+<script>
+(function(){
+  const logBox = document.querySelector('#log pre');
+  const log = (...args)=>{ console.log(...args); logBox.textContent += args.map(a => (typeof a==='object'? JSON.stringify(a): a)).join(' ') + "\n"; };
+
+  const sdkTag = document.getElementById('sdk');
+  const browserTag = document.getElementById('browser');
+  const signInBtn = document.getElementById('signInBtn');
+  const payBtn = document.getElementById('payBtn');
+  const openBtn = document.getElementById('openInPi');
+
+  function isPiBrowser(){
+    return /PiBrowser/i.test(navigator.userAgent) || !!(window.Pi && Pi.openShareDialog);
+  }
+
+  function setBadge(el, ok, text){
+    el.textContent = text;
+    el.className = ok ? 'ok' : 'bad';
+  }
+
+  function setup(){
+    const sdkLoaded = !!window.Pi;
+    setBadge(sdkTag, sdkLoaded, 'SDK: ' + (sdkLoaded ? 'loaded' : 'missing'));
+
+    const inPi = isPiBrowser();
+    setBadge(browserTag, inPi, 'Pi Browser: ' + (inPi ? 'YES' : 'NO'));
+
+    if(!inPi){
+      openBtn.style.display = 'inline-block';
     }
-  </script>
+
+    if (!sdkLoaded){
+      log('Pi SDK not available.');
+      return;
+    }
+
+    try{
+      // Sandbox = true uses the Testnet wallet
+      Pi.init({ version: "2.0", sandbox: true });
+      signInBtn.disabled = false;
+      log('Pi.init() done');
+    }catch(e){
+      log('Pi.init() error:', e);
+    }
+  }
+
+  openBtn.addEventListener('click', ()=>{
+    // Deep-link to Pi Browser if possible
+    const target = window.location.href.replace(/^https?:\/\//, '');
+    window.location.href = 'pi://' + target;
+  });
+
+  let currentUser = null;
+
+  signInBtn.addEventListener('click', async () => {
+    try{
+      const scopes = ['username','payments'];
+      currentUser = await Pi.authenticate(scopes, (payment)=>log('Found incomplete payment:', payment));
+      log('Signed in:', currentUser.user.username);
+      alert('Signed in as ' + currentUser.user.username);
+      payBtn.disabled = false;
+    }catch(e){
+      log('Auth error:', e);
+      alert('Auth error: ' + (e && e.message ? e.message : e));
+    }
+  });
+
+  payBtn.addEventListener('click', async ()=>{
+    try{
+      await Pi.createPayment({
+        amount: 1,
+        memo: "Test Payment (no-server)",
+        metadata: { demo: true, ts: Date.now() }
+      }, {
+        onReadyForServerApproval: (paymentId)=>{
+          log('Ready for approval:', paymentId);
+          alert('Ready for approval (no server action needed): ' + paymentId);
+        },
+        onReadyForServerCompletion: (paymentId)=>{
+          log('Ready for completion:', paymentId);
+          alert('Ready for completion (no server action needed): ' + paymentId);
+        },
+        onCancel: (paymentId)=>{ log('Cancelled:', paymentId); alert('Payment cancelled'); },
+        onError: (error, payment)=>{ log('Payment error:', error, payment); alert('Payment error: ' + error); }
+      });
+    }catch(e){
+      log('createPayment error:', e);
+      alert('createPayment error: ' + (e && e.message ? e.message : e));
+    }
+  });
+
+  // Wait a tick to allow the SDK script to load, then setup
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', setup);
+  } else {
+    setTimeout(setup, 100);
+  }
+})();
+</script>
 </body>
 </html>
