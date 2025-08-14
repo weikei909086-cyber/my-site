@@ -14,8 +14,8 @@
   .bad{background:var(--bad)}
   .hint{font-size:14px;color:var(--muted)}
   pre{white-space:pre-wrap;background:#f6f8fa;padding:12px;border-radius:10px}
+  code{background:#f6f8fa;padding:2px 6px;border-radius:6px}
 </style>
-<!-- Pi SDK -->
 <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 </head>
 <body>
@@ -24,6 +24,7 @@
   <div id="status" class="row">
     <span id="sdk">SDK: …</span>
     <span id="browser">Pi Browser: …</span>
+    <span id="domain"></span>
   </div>
 
   <div class="row">
@@ -32,10 +33,14 @@
     <button id="payBtn" disabled>Test Payment</button>
   </div>
 
+  <div class="row hint">
+    <div>User-Agent: <code id="ua"></code></div>
+  </div>
+
   <div id="log" class="row"><pre></pre></div>
 
   <p class="hint">
-    If <b>Sign in with Pi</b> is disabled, you are not inside the Pi Browser. Open the Pi mobile app → Menu ☰ → <b>Pi Browser</b> → paste your URL.
+    Tip: Your site’s exact domain must be added in <b>Pi Developer Portal → App → Web</b> for authentication to work.
   </p>
 
 <script>
@@ -48,12 +53,15 @@
 
   const sdkTag = document.getElementById('sdk');
   const browserTag = document.getElementById('browser');
+  const domainTag = document.getElementById('domain');
   const signInBtn = document.getElementById('signInBtn');
   const payBtn = document.getElementById('payBtn');
   const openBtn = document.getElementById('openInPi');
+  document.getElementById('ua').textContent = navigator.userAgent;
+  domainTag.textContent = 'Domain: ' + location.hostname;
 
   function isPiBrowser(){
-    return /PiBrowser/i.test(navigator.userAgent) || (window.Pi && typeof Pi.openShareDialog === 'function');
+    return /PiBrowser/i.test(navigator.userAgent) || (window.Pi && typeof Pi.openShareDialog === 'function') || !!window.ReactNativeWebView;
   }
 
   function setBadge(el, ok, text){
@@ -69,7 +77,6 @@
     setBadge(browserTag, inPi, 'Pi Browser: ' + (inPi ? 'YES' : 'NO'));
 
     if(!inPi){
-      // show helper to jump into Pi Browser via deep link
       openBtn.style.display = 'inline-block';
       openBtn.onclick = () => {
         const target = (location.href || '').replace(/^https?:\/\//, '');
@@ -83,7 +90,6 @@
     }
 
     try{
-      // Use Testnet (no real Pi) for this demo. Change to false for Mainnet once approved.
       Pi.init({ version: "2.0", sandbox: true });
       log('Pi.init() done');
     }catch(e){
@@ -91,16 +97,12 @@
       return;
     }
 
-    // Only enable sign-in if we are in Pi Browser and the SDK is ready
-    signInBtn.disabled = !inPi;
+    // Enable sign-in whenever SDK is ready.
+    signInBtn.disabled = false;
 
     let currentUser = null;
 
     signInBtn.addEventListener('click', async () => {
-      if(!isPiBrowser()){
-        alert('Please open this page inside Pi Browser (from the Pi app).');
-        return;
-      }
       try{
         const scopes = ['username','payments'];
         currentUser = await Pi.authenticate(scopes, (payment)=>log('Found incomplete payment:', payment));
@@ -108,8 +110,10 @@
         alert('Signed in as ' + (currentUser.user && currentUser.user.username));
         payBtn.disabled = false;
       }catch(e){
-        log('Auth error:', e);
-        alert('Auth error: ' + (e && e.message ? e.message : e));
+        // Show most common causes for failures
+        const msg = (e && e.message) ? e.message : String(e);
+        log('Auth error:', msg);
+        alert('Auth error: ' + msg + '\n\nCommon causes:\n• Not opened inside Pi Browser\n• Domain not added in Pi Developer Portal (must match: ' + location.hostname + ')\n• App not approved for this domain yet');
       }
     });
 
@@ -120,16 +124,10 @@
           memo: "Test Payment (no-server)",
           metadata: { demo: true, ts: Date.now() }
         }, {
-          onReadyForServerApproval: (paymentId)=>{
-            log('Ready for approval:', paymentId);
-            alert('Ready for approval (no server action needed): ' + paymentId);
-          },
-          onReadyForServerCompletion: (paymentId)=>{
-            log('Ready for completion:', paymentId);
-            alert('Ready for completion (no server action needed): ' + paymentId);
-          },
-          onCancel: (paymentId)=>{ log('Cancelled:', paymentId); alert('Payment cancelled'); },
-          onError: (error, payment)=>{ log('Payment error:', error, payment); alert('Payment error: ' + error); }
+          onReadyForServerApproval: (paymentId)=>{ log('Ready for approval:', paymentId); },
+          onReadyForServerCompletion: (paymentId)=>{ log('Ready for completion:', paymentId); },
+          onCancel: (paymentId)=>{ log('Cancelled:', paymentId); },
+          onError: (error, payment)=>{ log('Payment error:', error, payment); }
         });
       }catch(e){
         log('createPayment error:', e);
