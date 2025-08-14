@@ -5,15 +5,17 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pi Payment Demo (No-Server)</title>
 <style>
- body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:20px;line-height:1.4}
- .row{margin:10px 0}
- button{padding:10px 14px;margin-right:8px;border:1px solid #999;border-radius:8px;background:#fafafa}
- #status span{display:inline-block;margin-right:14px;padding:4px 8px;border-radius:6px;background:#eee}
- .ok{background:#d4f7d4}
- .bad{background:#ffe0e0}
- .hint{font-size:14px;color:#444}
- pre{white-space:pre-wrap;background:#f6f8fa;padding:10px;border-radius:8px}
+  :root{--ok:#d4f7d4;--bad:#ffe0e0;--muted:#666;}
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:20px;line-height:1.45}
+  .row{margin:12px 0}
+  button{padding:10px 14px;margin-right:8px;border:1px solid #bbb;border-radius:10px;background:#fafafa}
+  #status span{display:inline-block;margin-right:10px;padding:6px 10px;border-radius:8px;background:#eee}
+  .ok{background:var(--ok)}
+  .bad{background:var(--bad)}
+  .hint{font-size:14px;color:var(--muted)}
+  pre{white-space:pre-wrap;background:#f6f8fa;padding:12px;border-radius:10px}
 </style>
+<!-- Pi SDK -->
 <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 </head>
 <body>
@@ -33,14 +35,16 @@
   <div id="log" class="row"><pre></pre></div>
 
   <p class="hint">
-    If the <b>Sign in with Pi</b> button stays disabled, you are probably not inside the Pi Browser.
-    Open the Pi mobile app → Menu ☰ → <b>Pi Browser</b> → paste your URL and try again.
+    If <b>Sign in with Pi</b> is disabled, you are not inside the Pi Browser. Open the Pi mobile app → Menu ☰ → <b>Pi Browser</b> → paste your URL.
   </p>
 
 <script>
 (function(){
   const logBox = document.querySelector('#log pre');
-  const log = (...args)=>{ console.log(...args); logBox.textContent += args.map(a => (typeof a==='object'? JSON.stringify(a): a)).join(' ') + "\n"; };
+  const log = (...args)=>{
+    console.log(...args);
+    logBox.textContent += args.map(a => (typeof a==='object'? JSON.stringify(a): String(a))).join(' ') + "\n";
+  };
 
   const sdkTag = document.getElementById('sdk');
   const browserTag = document.getElementById('browser');
@@ -49,7 +53,7 @@
   const openBtn = document.getElementById('openInPi');
 
   function isPiBrowser(){
-    return /PiBrowser/i.test(navigator.userAgent) || !!(window.Pi && Pi.openShareDialog);
+    return /PiBrowser/i.test(navigator.userAgent) || (window.Pi && typeof Pi.openShareDialog === 'function');
   }
 
   function setBadge(el, ok, text){
@@ -65,7 +69,12 @@
     setBadge(browserTag, inPi, 'Pi Browser: ' + (inPi ? 'YES' : 'NO'));
 
     if(!inPi){
+      // show helper to jump into Pi Browser via deep link
       openBtn.style.display = 'inline-block';
+      openBtn.onclick = () => {
+        const target = (location.href || '').replace(/^https?:\/\//, '');
+        location.href = 'pi://' + target;
+      };
     }
 
     if (!sdkLoaded){
@@ -74,61 +83,61 @@
     }
 
     try{
-      // Sandbox = true uses the Testnet wallet
+      // Use Testnet (no real Pi) for this demo. Change to false for Mainnet once approved.
       Pi.init({ version: "2.0", sandbox: true });
-      signInBtn.disabled = false;
       log('Pi.init() done');
     }catch(e){
       log('Pi.init() error:', e);
+      return;
     }
+
+    // Only enable sign-in if we are in Pi Browser and the SDK is ready
+    signInBtn.disabled = !inPi;
+
+    let currentUser = null;
+
+    signInBtn.addEventListener('click', async () => {
+      if(!isPiBrowser()){
+        alert('Please open this page inside Pi Browser (from the Pi app).');
+        return;
+      }
+      try{
+        const scopes = ['username','payments'];
+        currentUser = await Pi.authenticate(scopes, (payment)=>log('Found incomplete payment:', payment));
+        log('Signed in as', currentUser && currentUser.user && currentUser.user.username);
+        alert('Signed in as ' + (currentUser.user && currentUser.user.username));
+        payBtn.disabled = false;
+      }catch(e){
+        log('Auth error:', e);
+        alert('Auth error: ' + (e && e.message ? e.message : e));
+      }
+    });
+
+    payBtn.addEventListener('click', async ()=>{
+      try{
+        await Pi.createPayment({
+          amount: 1,
+          memo: "Test Payment (no-server)",
+          metadata: { demo: true, ts: Date.now() }
+        }, {
+          onReadyForServerApproval: (paymentId)=>{
+            log('Ready for approval:', paymentId);
+            alert('Ready for approval (no server action needed): ' + paymentId);
+          },
+          onReadyForServerCompletion: (paymentId)=>{
+            log('Ready for completion:', paymentId);
+            alert('Ready for completion (no server action needed): ' + paymentId);
+          },
+          onCancel: (paymentId)=>{ log('Cancelled:', paymentId); alert('Payment cancelled'); },
+          onError: (error, payment)=>{ log('Payment error:', error, payment); alert('Payment error: ' + error); }
+        });
+      }catch(e){
+        log('createPayment error:', e);
+        alert('createPayment error: ' + (e && e.message ? e.message : e));
+      }
+    });
   }
 
-  openBtn.addEventListener('click', ()=>{
-    // Deep-link to Pi Browser if possible
-    const target = window.location.href.replace(/^https?:\/\//, '');
-    window.location.href = 'pi://' + target;
-  });
-
-  let currentUser = null;
-
-  signInBtn.addEventListener('click', async () => {
-    try{
-      const scopes = ['username','payments'];
-      currentUser = await Pi.authenticate(scopes, (payment)=>log('Found incomplete payment:', payment));
-      log('Signed in:', currentUser.user.username);
-      alert('Signed in as ' + currentUser.user.username);
-      payBtn.disabled = false;
-    }catch(e){
-      log('Auth error:', e);
-      alert('Auth error: ' + (e && e.message ? e.message : e));
-    }
-  });
-
-  payBtn.addEventListener('click', async ()=>{
-    try{
-      await Pi.createPayment({
-        amount: 1,
-        memo: "Test Payment (no-server)",
-        metadata: { demo: true, ts: Date.now() }
-      }, {
-        onReadyForServerApproval: (paymentId)=>{
-          log('Ready for approval:', paymentId);
-          alert('Ready for approval (no server action needed): ' + paymentId);
-        },
-        onReadyForServerCompletion: (paymentId)=>{
-          log('Ready for completion:', paymentId);
-          alert('Ready for completion (no server action needed): ' + paymentId);
-        },
-        onCancel: (paymentId)=>{ log('Cancelled:', paymentId); alert('Payment cancelled'); },
-        onError: (error, payment)=>{ log('Payment error:', error, payment); alert('Payment error: ' + error); }
-      });
-    }catch(e){
-      log('createPayment error:', e);
-      alert('createPayment error: ' + (e && e.message ? e.message : e));
-    }
-  });
-
-  // Wait a tick to allow the SDK script to load, then setup
   if (document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', setup);
   } else {
