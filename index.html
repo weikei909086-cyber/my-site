@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Cashflow App – Pi Auth & Payment (Fixed)</title>
+<title>Cashflow App – Pi Auth & Payment</title>
 <style>
   :root{--ok:#d4f7d4;--bad:#ffe0e0;--muted:#666;}
   body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:20px;line-height:1.45}
@@ -36,10 +36,7 @@
 <script>
 (function(){
   const logBox = document.querySelector('#log pre');
-  const log = (...args)=>{
-    console.log(...args);
-    logBox.textContent += args.map(a => (typeof a==='object'? JSON.stringify(a): String(a))).join(' ') + "\n";
-  };
+  const log = (...args)=>{ console.log(...args); logBox.textContent += args.map(a=>typeof a==='object'?JSON.stringify(a):String(a)).join(' ') + "\n"; };
 
   const sdkTag = document.getElementById('sdk');
   const browserTag = document.getElementById('browser');
@@ -49,53 +46,40 @@
 
   domainTag.textContent = 'Domain: ' + location.hostname;
 
-  // Best-effort detection (not blocking functionality anymore)
   function isProbablyPiBrowser(){
     const ua = (navigator.userAgent || '').toLowerCase();
     return ua.includes('pibrowser') || !!window.ReactNativeWebView || (window.Pi && typeof Pi.openShareDialog === 'function');
   }
 
-  function setBadge(el, ok, text){
-    el.textContent = text;
-    el.className = ok ? 'ok' : 'bad';
-  }
+  function setBadge(el, ok, text){ el.textContent = text; el.className = ok ? 'ok' : 'bad'; }
 
   function setup(){
     const sdkLoaded = !!window.Pi;
     setBadge(sdkTag, sdkLoaded, 'SDK: ' + (sdkLoaded ? 'loaded' : 'missing'));
     setBadge(browserTag, isProbablyPiBrowser(), 'Pi Browser (best-effort): ' + (isProbablyPiBrowser() ? 'YES' : 'NO'));
 
-    if (!sdkLoaded){
-      log('Pi SDK not available.');
-      return;
-    }
+    if (!sdkLoaded){ log('Pi SDK not available.'); return; }
 
     try{
-      // Testnet mode
       Pi.init({ version: "2.0", sandbox: true });
       log('Pi.init() done (sandbox=true)');
-    }catch(e){
-      log('Pi.init() error:', e);
-      return;
-    }
+    }catch(e){ log('Pi.init() error:', e); return; }
 
-    // ✅ Always enable Sign-in once SDK is ready
+    // Always allow sign-in after SDK init (no browser gate)
     btnSignIn.disabled = false;
 
     let currentUser = null;
 
     btnSignIn.addEventListener('click', async ()=>{
       try{
-        const scopes = ['username','payments'];
-        currentUser = await Pi.authenticate(scopes, (payment)=>log('Incomplete payment:', payment));
-        const uname = currentUser && currentUser.user && currentUser.user.username;
+        const res = await Pi.authenticate(['username','payments'], (payment)=>log('Incomplete payment:', payment));
+        currentUser = res;
+        const uname = currentUser?.user?.username;
         log('Signed in as', uname);
         alert('Signed in as ' + uname);
-        // Enable payment button after successful sign-in
         btnPay.disabled = false;
       }catch(e){
-        log('Auth error:', e);
-        alert('Auth error: ' + (e && e.message ? e.message : e));
+        log('Auth error:', e); alert('Auth error: ' + (e?.message || e));
       }
     });
 
@@ -111,18 +95,12 @@
           onCancel: (paymentId)=>{ log('Payment cancelled:', paymentId); alert('Payment cancelled'); },
           onError: (error, payment)=>{ log('Payment error:', error, payment); alert('Payment error: ' + error); }
         });
-      }catch(e){
-        log('createPayment error:', e);
-        alert('createPayment error: ' + (e && e.message ? e.message : e));
-      }
+      }catch(e){ log('createPayment error:', e); alert('createPayment error: ' + (e?.message || e)); }
     });
   }
 
-  if (document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', setup);
-  } else {
-    setTimeout(setup, 100);
-  }
+  if (document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', setup); }
+  else { setTimeout(setup, 100); }
 })();
 </script>
 </body>
