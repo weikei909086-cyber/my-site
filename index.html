@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Cashflow App – Pi Auth & Payment</title>
+<title>Cashflow App – Pi Auth (username only)</title>
 <style>
   :root{--ok:#d4f7d4;--bad:#ffe0e0;--muted:#666;}
   body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:20px;line-height:1.45}
@@ -19,7 +19,7 @@
 <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 </head>
 <body>
-  <h1>Cashflow App – Pi Auth & Payment</h1>
+  <h1>Cashflow App – Pi Auth (username only)</h1>
   <div id="status" class="row">
     <span id="sdk">SDK: …</span>
     <span id="browser">Pi Browser (best-effort): …</span>
@@ -28,7 +28,7 @@
 
   <div class="row">
     <button id="btnSignIn" disabled>Sign in with Pi</button>
-    <button id="btnPay" disabled>Make Payment</button>
+    <button id="btnPay" disabled title="Enable Payments scope in the Pi Portal to use this">Make Payment</button>
   </div>
 
   <div id="log" class="row"><pre></pre></div>
@@ -50,14 +50,12 @@
     const ua = (navigator.userAgent || '').toLowerCase();
     return ua.includes('pibrowser') || !!window.ReactNativeWebView || (window.Pi && typeof Pi.openShareDialog === 'function');
   }
-
   function setBadge(el, ok, text){ el.textContent = text; el.className = ok ? 'ok' : 'bad'; }
 
   function setup(){
     const sdkLoaded = !!window.Pi;
     setBadge(sdkTag, sdkLoaded, 'SDK: ' + (sdkLoaded ? 'loaded' : 'missing'));
     setBadge(browserTag, isProbablyPiBrowser(), 'Pi Browser (best-effort): ' + (isProbablyPiBrowser() ? 'YES' : 'NO'));
-
     if (!sdkLoaded){ log('Pi SDK not available.'); return; }
 
     try{
@@ -65,37 +63,26 @@
       log('Pi.init() done (sandbox=true)');
     }catch(e){ log('Pi.init() error:', e); return; }
 
-    // Always allow sign-in after SDK init (no browser gate)
+    // Enable Sign-in after SDK init
     btnSignIn.disabled = false;
-
-    let currentUser = null;
 
     btnSignIn.addEventListener('click', async ()=>{
       try{
-        const res = await Pi.authenticate(['username','payments'], (payment)=>log('Incomplete payment:', payment));
-        currentUser = res;
-        const uname = currentUser?.user?.username;
+        // 👇 Username only (no payments)
+        const res = await Pi.authenticate(['username']);
+        const uname = res?.user?.username;
         log('Signed in as', uname);
-        alert('Signed in as ' + uname);
-        btnPay.disabled = false;
+        alert('Signed in as ' + uname + ' (username scope)');
+        // Keep payment disabled until payments scope is enabled in the portal
       }catch(e){
-        log('Auth error:', e); alert('Auth error: ' + (e?.message || e));
+        log('Auth error:', e);
+        alert('Auth error: ' + (e?.message || e));
       }
     });
 
-    btnPay.addEventListener('click', async ()=>{
-      try{
-        await Pi.createPayment({
-          amount: 1,
-          memo: "Cashflow App Test Payment",
-          metadata: { demo: true, ts: Date.now() }
-        }, {
-          onReadyForServerApproval: (paymentId)=>{ log('Ready for approval:', paymentId); alert('Ready for approval: ' + paymentId); },
-          onReadyForServerCompletion: (paymentId)=>{ log('Ready for completion:', paymentId); alert('Ready for completion: ' + paymentId); },
-          onCancel: (paymentId)=>{ log('Payment cancelled:', paymentId); alert('Payment cancelled'); },
-          onError: (error, payment)=>{ log('Payment error:', error, payment); alert('Payment error: ' + error); }
-        });
-      }catch(e){ log('createPayment error:', e); alert('createPayment error: ' + (e?.message || e)); }
+    // Payments stay disabled until you enable the scope in the Portal
+    btnPay.addEventListener('click', ()=>{
+      alert('Enable the "payments" scope in the Pi Developer Portal, then switch authenticate() to ["username","payments"].');
     });
   }
 
