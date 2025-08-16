@@ -169,7 +169,7 @@ function persist(){ localStorage.setItem(KEY, JSON.stringify(S)); }
 
 /* Optional Pi SDK */
 const Pi = (window.Pi) ? window.Pi : null;
-if(Pi){ try{ Pi.init({version:"2.0"}); }catch(_){} }
+if(Pi){ try{ Pi.init({version:"2.0", sandbox:true}); }catch(_){} }
 
 const $ = id => document.getElementById(id);
 const money = n => "$" + (Math.round(n).toLocaleString());
@@ -361,42 +361,52 @@ document.getElementById("btnNext").onclick = () => nextMonth();
 
 
 // Pay with Pi (client-only, no-server demo)
+
 async function payWithPi(){
   const PiRef = getPi();
   if(!PiRef){
     alert("Pi SDK not available. Open this page in the Pi Browser app, then reload.");
     return;
   }
-  try{
-    try{ PiRef.init({version:"2.0"}); }catch(_){}
-    // Ensure user is authenticated so username appears in the payment sheet
-    if(!S.user || !S.user.username || S.user.username === "Guest"){
-      await doPiAuth();
-    }
-    const paymentData = {
-      amount: 0.01,
-      memo: "Pi Cashflow EDU • Test payment",
-      metadata: { orderId: Date.now() }
-    };
+  try{ PiRef.init({version:"2.0", sandbox:true}); }catch(_){}
+
+  // Helper to start a payment
+  async function startPayment(){
+    const paymentData = { amount: 0.01, memo: "Pi Cashflow EDU • Test payment", metadata: { orderId: Date.now() } };
     const callbacks = {
-      onReadyForServerApproval: async (paymentId) => {
-        // No-server mode: instantly approve on client
-        PiRef.approvePayment(paymentId);
-      },
-      onReadyForServerCompletion: async (paymentId, txId) => {
-        // No-server mode: instantly complete on client
-        PiRef.completePayment(paymentId);
-        toast("✅ Payment completed (testnet).");
-      },
+      onReadyForServerApproval: async (paymentId) => { PiRef.approvePayment(paymentId); },
+      onReadyForServerCompletion: async (paymentId, txId) => { PiRef.completePayment(paymentId); toast("✅ Payment completed (testnet)."); },
       onCancel: (paymentId) => toast("❌ Payment cancelled."),
       onError: (err) => { console.error(err); alert(err?.message || "Payment error"); }
     };
-    await PiRef.createPayment(paymentData, callbacks);
+    return PiRef.createPayment(paymentData, callbacks);
+  }
+
+  try{
+    // First try (in case user already has payments scope)
+    await startPayment();
   }catch(e){
-    console.error("Payment error:", e);
-    alert(e?.message || "Payment failed to start");
+    const msg = (e && e.message ? e.message : String(e));
+    if(msg.toLowerCase().includes("payments scope")){
+      // Re-auth with payments scope then retry once
+      await doPiAuth(); 
+      try{
+        await startPayment();
+      }catch(e2){
+        console.error("Payment retry failed:", e2);
+        alert(e2?.message || "Payment failed after re-auth. In Pi Dev Console, enable the 'payments' scope for this app, add the production URL, and try again.");
+      }
+    }else{
+      console.error("Payment error:", e);
+      alert(msg);
+    }
   }
 }
+// wire up the payment button
+document.addEventListener("DOMContentLoaded", ()=>{
+  const payBtn = document.getElementById("btnPay");
+  if(payBtn) payBtn.onclick = payWithPi;
+});
 // wire up the payment button
 document.addEventListener("DOMContentLoaded", ()=>{
   const payBtn = document.getElementById("btnPay");
@@ -408,7 +418,7 @@ document.getElementById("btnPi").onclick = async () => { return doPiAuth(); /* p
 
   
   try{
-    const scopes = ["username"]; // no payments in this MVP
+    const scopes = ["payments","username"]; // no payments in this MVP
     const user = await Pi.authenticate(scopes, onIncomplete);
     S.user.piUid = user.uid;
     S.user.username = user.username || "Pioneer";
@@ -427,8 +437,8 @@ async function doPiAuth(){
     return;
   }
   try{
-    try{ PiRef.init({version:"2.0"}); }catch(_){}
-    const scopes = ["username"];
+    try{ PiRef.init({version:"2.0", sandbox:true}); }catch(_){}
+    const scopes = ["payments","username"];
     const user = await PiRef.authenticate(scopes, onIncomplete);
     S.user.piUid = user.uid;
     S.user.username = user.username || "Pioneer";
