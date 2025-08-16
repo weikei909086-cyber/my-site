@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Cashflow App – Pi Auth & Payment</title>
+<title>Cashflow App – Pi Auth & Payment (Fixed)</title>
 <style>
   :root{--ok:#d4f7d4;--bad:#ffe0e0;--muted:#666;}
   body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:20px;line-height:1.45}
@@ -22,7 +22,7 @@
   <h1>Cashflow App – Pi Auth & Payment</h1>
   <div id="status" class="row">
     <span id="sdk">SDK: …</span>
-    <span id="browser">Pi Browser: …</span>
+    <span id="browser">Pi Browser (best-effort): …</span>
     <span id="domain"></span>
   </div>
 
@@ -49,8 +49,10 @@
 
   domainTag.textContent = 'Domain: ' + location.hostname;
 
-  function isPiBrowser(){
-    return /PiBrowser/i.test(navigator.userAgent) || (window.Pi && typeof Pi.openShareDialog === 'function') || !!window.ReactNativeWebView;
+  // Best-effort detection (not blocking functionality anymore)
+  function isProbablyPiBrowser(){
+    const ua = (navigator.userAgent || '').toLowerCase();
+    return ua.includes('pibrowser') || !!window.ReactNativeWebView || (window.Pi && typeof Pi.openShareDialog === 'function');
   }
 
   function setBadge(el, ok, text){
@@ -61,8 +63,7 @@
   function setup(){
     const sdkLoaded = !!window.Pi;
     setBadge(sdkTag, sdkLoaded, 'SDK: ' + (sdkLoaded ? 'loaded' : 'missing'));
-    const inPi = isPiBrowser();
-    setBadge(browserTag, inPi, 'Pi Browser: ' + (inPi ? 'YES' : 'NO'));
+    setBadge(browserTag, isProbablyPiBrowser(), 'Pi Browser (best-effort): ' + (isProbablyPiBrowser() ? 'YES' : 'NO'));
 
     if (!sdkLoaded){
       log('Pi SDK not available.');
@@ -78,7 +79,7 @@
       return;
     }
 
-    // Enable Sign-in once SDK is ready
+    // ✅ Always enable Sign-in once SDK is ready
     btnSignIn.disabled = false;
 
     let currentUser = null;
