@@ -49,6 +49,7 @@
       <div class="brand">🐭 Pi Cashflow EDU</div>
       <span class="pill" id="status">Not signed in</span>
       <button class="btn" id="btnPi">Sign in with Pi</button>
+<button class="btn btnHi" id="btnPay">Pay with Pi (1π)</button>
       <button class="btn" id="btnSave">Export Save</button>
       <label class="btn" for="imp" title="Import Save JSON">Import Save<input id="imp" type="file" accept="application/json" style="display:none"></label>
     </div>
@@ -416,5 +417,59 @@ initUI();
   window.addEventListener('load', update);
 })();
 </script>
+
+<script>
+  (function () {
+    const BACKEND = "https://YOUR-BACKEND-URL"; // TODO: replace with your deployed backend URL
+
+    function $(id){ return document.getElementById(id); }
+    function toast(msg){ try{ console.log(msg); }catch(e){} }
+
+    // Ensure Pi SDK initialized
+    try { window.Pi && window.Pi.init({ version: "2.0" }); } catch (_) {}
+
+    const btn = document.getElementById("btnPay");
+    if (btn) {
+      btn.addEventListener("click", async () => {
+        const PiRef = window.Pi;
+        if (!PiRef) { alert("Open this page in the Pi Browser app."); return; }
+
+        try {
+          await PiRef.authenticate(["payments"], () => {});
+
+          const amount = 1; // adjust as needed
+          const memo = "Pi Cashflow EDU test";
+
+          await PiRef.createPayment(
+            { amount, memo, metadata: { game: "cashflow", ts: Date.now() } },
+            {
+              onReadyForServerApproval: async (paymentId) => {
+                await fetch(BACKEND + "/approve", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ paymentId, expectedAmount: amount, expectedMemo: memo })
+                });
+              },
+              onReadyForServerCompletion: async (paymentId, txid) => {
+                await fetch(BACKEND + "/complete", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ paymentId, txid })
+                });
+                toast("✅ Payment completed!");
+              },
+              onCancel: (e) => { console.log("Payment cancelled", e); },
+              onError:  (e) => { console.error("Payment error", e); alert("Payment error: " + (e?.message || e)); },
+            }
+          );
+        } catch (err) {
+          console.error(err);
+          alert("Payment flow failed: " + (err?.message || err));
+        }
+      });
+    }
+  })();
+</script>
+
 </body>
 </html>
