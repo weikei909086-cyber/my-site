@@ -1,127 +1,64 @@
-<!doctype html>
-<html lang="en">
+
+<!DOCTYPE html>
+<html>
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Pi Auth Diagnostics</title>
-<style>
-  :root{--ok:#d4f7d4;--bad:#ffe0e0;--muted:#666;}
-  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:20px;line-height:1.45}
-  .row{margin:12px 0}
-  button{padding:10px 14px;margin-right:8px;border:1px solid #bbb;border-radius:10px;background:#fafafa}
-  #status span{display:inline-block;margin-right:10px;padding:6px 10px;border-radius:8px;background:#eee}
-  .ok{background:var(--ok)}
-  .bad{background:var(--bad)}
-  .hint{font-size:14px;color:var(--muted)}
-  pre{white-space:pre-wrap;background:#f6f8fa;padding:12px;border-radius:10px}
-  code{background:#f6f8fa;padding:2px 6px;border-radius:6px}
-</style>
-<script src="https://sdk.minepi.com/pi-sdk.js"></script>
+  <meta charset="UTF-8">
+  <title>Pi Payment Demo</title>
+  <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 </head>
 <body>
-  <h1>Pi Auth Diagnostics</h1>
+  <h1>Pi Payment Demo - No Server Mode</h1>
+  <button id="signInButton">Sign in with Pi</button>
+  <button id="payButton" disabled>Test Payment</button>
 
-  <div id="status" class="row">
-    <span id="sdk">SDK: …</span>
-    <span id="browser">Pi Browser: …</span>
-    <span id="domain"></span>
-  </div>
+  <script>
+    Pi.init({ version: "2.0", sandbox: true });
 
-  <div class="row">
-    <button id="openInPi" style="display:none">Open in Pi Browser</button>
-    <button id="signUserBtn" disabled>Sign in (username only)</button>
-    <button id="signPayBtn" disabled>Sign in (username + payments)</button>
-  </div>
+    const signInButton = document.getElementById('signInButton');
+    const payButton = document.getElementById('payButton');
+    let currentUser = null;
 
-  <div class="row hint">
-    <div>User-Agent: <code id="ua"></code></div>
-  </div>
-
-  <div id="log" class="row"><pre></pre></div>
-
-  <p class="hint">
-    Tip: Add this domain in <b>Pi Developer Portal → App → Web</b>. If <b>username only</b> works but <b>username + payments</b> fails, enable the Payments product / scopes in the portal.
-  </p>
-
-<script>
-(function(){
-  const logBox = document.querySelector('#log pre');
-  const log = (...args)=>{
-    console.log(...args);
-    logBox.textContent += args.map(a => (typeof a==='object'? JSON.stringify(a): String(a))).join(' ') + "\n";
-  };
-
-  const sdkTag = document.getElementById('sdk');
-  const browserTag = document.getElementById('browser');
-  const domainTag = document.getElementById('domain');
-  const signUserBtn = document.getElementById('signUserBtn');
-  const signPayBtn = document.getElementById('signPayBtn');
-  const openBtn = document.getElementById('openInPi');
-  document.getElementById('ua').textContent = navigator.userAgent;
-  domainTag.textContent = 'Domain: ' + location.hostname;
-
-  function isPiBrowser(){
-    return /PiBrowser/i.test(navigator.userAgent) || (window.Pi && typeof Pi.openShareDialog === 'function') || !!window.ReactNativeWebView;
-  }
-
-  function setBadge(el, ok, text){
-    el.textContent = text;
-    el.className = ok ? 'ok' : 'bad';
-  }
-
-  function setup(){
-    const sdkLoaded = !!window.Pi;
-    setBadge(sdkTag, sdkLoaded, 'SDK: ' + (sdkLoaded ? 'loaded' : 'missing'));
-
-    const inPi = isPiBrowser();
-    setBadge(browserTag, inPi, 'Pi Browser: ' + (inPi ? 'YES' : 'NO'));
-
-    if(!inPi){
-      openBtn.style.display = 'inline-block';
-      openBtn.onclick = () => {
-        const target = (location.href || '').replace(/^https?:\/\//, '');
-        location.href = 'pi://' + target;
-      };
-    }
-
-    if (!sdkLoaded){
-      log('Pi SDK not available.');
-      return;
-    }
-
-    try{
-      Pi.init({ version: "2.0", sandbox: true });
-      log('Pi.init() done');
-    }catch(e){
-      log('Pi.init() error:', e);
-      return;
-    }
-
-    signUserBtn.disabled = false;
-    signPayBtn.disabled = false;
-
-    async function doAuth(scopes){
-      try{
-        const res = await Pi.authenticate(scopes, (payment)=>log('Incomplete payment:', payment));
-        log('Auth success. Scopes:', scopes, 'User:', res && res.user && res.user.username);
-        alert('Signed in OK (' + scopes.join(',') + '): ' + (res.user && res.user.username));
-      }catch(e){
-        const msg = (e && e.message) ? e.message : String(e);
-        log('Auth error (' + scopes.join(',') + '):', msg);
-        alert('Auth error (' + scopes.join(',') + '): ' + msg);
+    signInButton.addEventListener('click', async () => {
+      try {
+        const scopes = ['username', 'payments'];
+        currentUser = await Pi.authenticate(scopes, onIncompletePaymentFound);
+        alert(`Signed in as ${currentUser.user.username}`);
+        payButton.disabled = false;
+      } catch (err) {
+        console.error(err);
       }
+    });
+
+    payButton.addEventListener('click', async () => {
+      try {
+        const payment = await Pi.createPayment({
+          amount: 1,
+          memo: "Test Payment",
+          metadata: { orderId: 1234 }
+        }, {
+          onReadyForServerApproval: paymentId => {
+            alert(`Payment ready for approval: ${paymentId}`);
+          },
+          onReadyForServerCompletion: paymentId => {
+            alert(`Payment ready for completion: ${paymentId}`);
+          },
+          onCancel: paymentId => {
+            alert(`Payment cancelled: ${paymentId}`);
+          },
+          onError: (error, payment) => {
+            console.error(error);
+            alert("Payment error: " + error);
+          }
+        });
+        console.log(payment);
+      } catch (err) {
+        console.error(err);
+      }
+    });
+
+    function onIncompletePaymentFound(payment) {
+      console.log("Incomplete payment found:", payment);
     }
-
-    signUserBtn.addEventListener('click', ()=>doAuth(['username']));
-    signPayBtn.addEventListener('click', ()=>doAuth(['username','payments']));
-  }
-
-  if (document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', setup);
-  } else {
-    setTimeout(setup, 100);
-  }
-})();
-</script>
+  </script>
 </body>
 </html>
