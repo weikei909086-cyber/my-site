@@ -2,76 +2,116 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Pi Payment Test</title>
+  <title>Pi Payment Test (Fixed)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Pi SDK -->
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:24px}
+    button{padding:10px 16px;font-size:16px;border-radius:10px;border:1px solid #999}
+  </style>
 </head>
 <body>
   <h1>Pi Network Payment Test</h1>
-  <button class="btn btnHi" id="btnPay">Pay with Pi (1π)</button>
+  <button id="btnPay">Pay with Pi (1π)</button>
 
   <script>
     (function () {
-      const BACKEND = "https://pi-backend-virid.vercel.app"; // your backend URL
+      const BACKEND = "https://pi-backend-virid.vercel.app"; // your deployed backend
+      const AMOUNT = 1;
+      const MEMO = "Pi Cashflow EDU test";
+      let retrying = false;
 
-      function toast(msg){ alert(msg); }
+      function toast(msg){ try{ alert(msg); }catch(_){} }
+      function delay(ms){ return new Promise(r => setTimeout(r, ms)); }
 
       // Initialize Pi SDK
       try { window.Pi && window.Pi.init({ version: "2.0" }); } catch (_) {}
 
-      const btn = document.getElementById("btnPay");
-      if (btn) {
-        btn.addEventListener("click", async () => {
-          const PiRef = window.Pi;
-          if (!PiRef) { alert("Open this page inside the Pi Browser app."); return; }
-
-          try {
-            // 1) Authenticate with 'payments' scope
-            await PiRef.authenticate(["payments"], () => {});
-
-            // 2) Create payment
-            const amount = 1;
-            const memo = "Pi Cashflow EDU test";
-
-            await PiRef.createPayment(
-              { amount, memo, metadata: { game: "cashflow", ts: Date.now() } },
-              {
-                // 3) Ask backend to approve
-                onReadyForServerApproval: async (paymentId) => {
-                  const r = await fetch(BACKEND + "/approve", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ paymentId })
-                  });
-                  if (!r.ok) {
-                    const t = await r.text();
-                    alert("Approve failed: " + r.status + " " + t);
-                    throw new Error("Approve failed");
-                  }
-                },
-                // 4) Ask backend to complete after user confirms in wallet
-                onReadyForServerCompletion: async (paymentId, txid) => {
-                  const r = await fetch(BACKEND + "/complete", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ paymentId, txid })
-                  });
-                  if (!r.ok) {
-                    const t = await r.text();
-                    alert("Complete failed: " + r.status + " " + t);
-                    throw new Error("Complete failed");
-                  }
-                  toast("✅ Payment completed!");
-                },
-                onCancel: (e) => { console.log("cancel", e); },
-                onError:  (e) => { console.error("error", e); alert("Payment error: " + (e?.message || e)); },
-              }
-            );
-          } catch (err) {
-            console.error(err);
-            alert("Payment flow failed: " + (err?.message || err));
+      async function approveFast(paymentId){
+        // Approve quickly with an 8s timeout
+        const ctl = new AbortController();
+        const t = setTimeout(() => ctl.abort(), 8000);
+        try {
+          const r = await fetch(BACKEND + "/approve", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ paymentId }),
+            signal: ctl.signal
+          });
+          clearTimeout(t);
+          if (!r.ok) {
+            const text = await r.text();
+            if (text.includes("cancelled_payment")){
+              throw new Error("CANCELLED");
+            }
+            throw new Error("Approve failed: " + r.status + " " + text);
           }
-        });
+        } catch(err){
+          clearTimeout(t);
+          throw err;
+        }
       }
+
+      async function complete(paymentId, txid){
+        const r = await fetch(BACKEND + "/complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ paymentId, txid })
+        });
+        if (!r.ok){
+          const text = await r.text();
+          throw new Error("Complete failed: " + r.status + " " + text);
+        }
+      }
+
+      async function startPayment(){
+        const PiRef = window.Pi;
+        if (!PiRef){ toast("Open this page inside the Pi Browser app."); return; }
+
+        try {
+          await PiRef.authenticate(["payments"], () => {});
+
+          await PiRef.createPayment(
+            { amount: AMOUNT, memo: MEMO, metadata: { app: "cashflow", ts: Date.now() } },
+            {
+              onReadyForServerApproval: async (paymentId) => {
+                try {
+                  await approveFast(paymentId);
+                } catch(e){
+                  if (("" + e.message).includes("CANCELLED")){
+                    if (!retrying){
+                      retrying = true;
+                      toast("Payment expired — retrying...");
+                      await delay(600);
+                      await startPayment();
+                    } else {
+                      toast("Payment expired again. Please try once more.");
+                    }
+                    throw e;
+                  } else {
+                    toast(e.message || e);
+                    throw e;
+                  }
+                }
+              },
+              onReadyForServerCompletion: async (paymentId, txid) => {
+                await complete(paymentId, txid);
+                toast("✅ Payment completed!");
+                retrying = false;
+              },
+              onCancel: () => { retrying = false; console.log("User cancelled"); },
+              onError:  (e) => { retrying = false; console.error(e); toast("Payment error: " + (e?.message || e)); },
+            }
+          );
+        } catch (err){
+          retrying = false;
+          console.error(err);
+          toast("Payment flow failed: " + (err?.message || err));
+        }
+      }
+
+      document.getElementById("btnPay").addEventListener("click", startPayment);
     })();
   </script>
 </body>
