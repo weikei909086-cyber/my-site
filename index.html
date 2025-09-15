@@ -1,118 +1,154 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Pi Payment Test (Fixed)</title>
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cashflow Game — Pay to Enter</title>
   <!-- Pi SDK -->
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:24px}
-    button{padding:10px 16px;font-size:16px;border-radius:10px;border:1px solid #999}
+    :root { --bg:#0f1221; --card:#161a30; --text:#e8e8f0; --muted:#a6adbb; --accent:#8b5cf6; }
+    * { box-sizing:border-box }
+    body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:var(--bg); color:var(--text); }
+    .wrap { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px }
+    .card { width:min(980px, 100%); background:var(--card); border-radius:18px; padding:28px; box-shadow:0 10px 30px rgba(0,0,0,.35) }
+    h1 { margin:0 0 10px; font-size:26px }
+    p { color:var(--muted); margin:0 0 18px }
+    .row { display:flex; gap:14px; flex-wrap:wrap }
+    button { background:var(--accent); border:none; color:white; padding:12px 16px; border-radius:12px; font-size:16px; cursor:pointer }
+    button.secondary { background:#2b2f45 }
+    button:disabled { opacity:.6; cursor:not-allowed }
+    .notice { font-size:14px; color:#b9c0d4 }
+    iframe { width:100%; height:80vh; border:0; border-radius:14px; background:#000 }
+    .hide { display:none !important }
+    .ok { color:#19c37d; }
+    .err { color:#ff5b5b; }
   </style>
 </head>
 <body>
-  <h1>Pi Network Payment Test</h1>
-  <button id="btnPay">Pay with Pi (1π)</button>
+  <div class="wrap" id="gate">
+    <div class="card">
+      <h1>Cashflow Game Access</h1>
+      <p>Pay once, then enter the game.</p>
+      <div class="row">
+        <button id="btnPay">Pay with Pi</button>
+        <button id="btnEnter" class="secondary" disabled>Enter Game</button>
+        <button id="btnReset" class="secondary">Reset (testing)</button>
+      </div>
+      <p class="notice" id="status">Status: waiting</p>
+    </div>
+  </div>
+
+  <div class="wrap hide" id="gameWrap">
+    <div class="card">
+      <h1>Cashflow Game</h1>
+      <p class="notice ok">Access granted ✔</p>
+      <!-- Replace GAME_URL below with your real game page -->
+      <iframe id="gameFrame" src="https://weikei909086-cyber.github.io"></iframe>
+    </div>
+  </div>
 
   <script>
-    (function () {
-      const BACKEND = "https://pi-backend-virid.vercel.app"; // your deployed backend
-      const AMOUNT = 1;
-      const MEMO = "Pi Cashflow EDU test";
-      let retrying = false;
+  (function(){
+    // ======= CONFIG =======
+    const BACKEND  = "https://pi-backend-virid.vercel.app"; // your Node backend on Vercel
+    const PRICE_PI = 1;                                     // charge amount in Pi
+    const MEMO     = "Cashflow Game access";                // payment memo
+    // ======================
 
-      function toast(msg){ try{ alert(msg); }catch(_){} }
-      function delay(ms){ return new Promise(r => setTimeout(r, ms)); }
+    const $ = (id) => document.getElementById(id);
+    const status = $("status");
+    function setStatus(txt, cls){ status.textContent = "Status: " + txt; status.className = "notice " + (cls||""); }
 
-      // Initialize Pi SDK
-      try { window.Pi && window.Pi.init({ version: "2.0" }); } catch (_) {}
+    const btnPay   = $("btnPay");
+    const btnEnter = $("btnEnter");
+    const btnReset = $("btnReset");
+    const gate     = $("gate");
+    const gameWrap = $("gameWrap");
 
-      async function approveFast(paymentId){
-        // Approve quickly with an 8s timeout
-        const ctl = new AbortController();
-        const t = setTimeout(() => ctl.abort(), 8000);
-        try {
-          const r = await fetch(BACKEND + "/approve", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ paymentId }),
-            signal: ctl.signal
-          });
-          clearTimeout(t);
-          if (!r.ok) {
-            const text = await r.text();
-            if (text.includes("cancelled_payment")){
-              throw new Error("CANCELLED");
-            }
-            throw new Error("Approve failed: " + r.status + " " + text);
+    // Show game if already paid in this browser (simple pass)
+    const PASS_KEY = "cashflow_pass_v1";
+    if (localStorage.getItem(PASS_KEY) === "ok") {
+      openGame();
+    }
+
+    try { window.Pi && window.Pi.init({ version: "2.0" }); } catch(_) {}
+
+    btnReset.onclick = () => { localStorage.removeItem(PASS_KEY); btnEnter.disabled = true; showGate(); setStatus("reset; please pay to enter"); };
+
+    btnEnter.onclick = () => openGame();
+
+    btnPay.onclick = async () => {
+      const PiRef = window.Pi;
+      if (!PiRef) { alert("Open this page inside the Pi Browser app."); return; }
+
+      try {
+        setStatus("authenticating…");
+        await PiRef.authenticate(["payments"], () => {});
+
+        setStatus("creating payment…");
+        await PiRef.createPayment(
+          { amount: PRICE_PI, memo: MEMO, metadata: { product: "cashflow-pass", ts: Date.now() } },
+          {
+            onReadyForServerApproval: approveFast,
+            onReadyForServerCompletion: completeFast,
+            onCancel: () => setStatus("cancelled", "err"),
+            onError:  (e) => setStatus("error: " + (e?.message||e), "err"),
           }
-        } catch(err){
-          clearTimeout(t);
-          throw err;
-        }
+        );
+      } catch (err){
+        setStatus("error: " + (err?.message||err), "err");
       }
+    };
 
-      async function complete(paymentId, txid){
-        const r = await fetch(BACKEND + "/complete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ paymentId, txid })
-        });
-        if (!r.ok){
-          const text = await r.text();
-          throw new Error("Complete failed: " + r.status + " " + text);
+    async function approveFast(paymentId){
+      setStatus("requesting approval…");
+      const ctl = new AbortController();
+      const to  = setTimeout(()=>ctl.abort(), 10000);
+      const r = await fetch(BACKEND + "/approve", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ paymentId }),
+        signal: ctl.signal
+      });
+      clearTimeout(to);
+      if (!r.ok){
+        const t = await r.text();
+        if (t.includes("cancelled_payment")){
+          setStatus("expired; please try again", "err");
+        } else {
+          setStatus("approve failed: " + r.status + " " + t, "err");
         }
+        throw new Error("approve failed");
       }
+      setStatus("approved — waiting for wallet confirmation…");
+    }
 
-      async function startPayment(){
-        const PiRef = window.Pi;
-        if (!PiRef){ toast("Open this page inside the Pi Browser app."); return; }
-
-        try {
-          await PiRef.authenticate(["payments"], () => {});
-
-          await PiRef.createPayment(
-            { amount: AMOUNT, memo: MEMO, metadata: { app: "cashflow", ts: Date.now() } },
-            {
-              onReadyForServerApproval: async (paymentId) => {
-                try {
-                  await approveFast(paymentId);
-                } catch(e){
-                  if (("" + e.message).includes("CANCELLED")){
-                    if (!retrying){
-                      retrying = true;
-                      toast("Payment expired — retrying...");
-                      await delay(600);
-                      await startPayment();
-                    } else {
-                      toast("Payment expired again. Please try once more.");
-                    }
-                    throw e;
-                  } else {
-                    toast(e.message || e);
-                    throw e;
-                  }
-                }
-              },
-              onReadyForServerCompletion: async (paymentId, txid) => {
-                await complete(paymentId, txid);
-                toast("✅ Payment completed!");
-                retrying = false;
-              },
-              onCancel: () => { retrying = false; console.log("User cancelled"); },
-              onError:  (e) => { retrying = false; console.error(e); toast("Payment error: " + (e?.message || e)); },
-            }
-          );
-        } catch (err){
-          retrying = false;
-          console.error(err);
-          toast("Payment flow failed: " + (err?.message || err));
-        }
+    async function completeFast(paymentId, txid){
+      setStatus("finalizing…");
+      const r = await fetch(BACKEND + "/complete", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ paymentId, txid })
+      });
+      if (!r.ok){
+        const t = await r.text();
+        setStatus("complete failed: " + r.status + " " + t, "err");
+        throw new Error("complete failed");
       }
+      setStatus("payment complete ✔","ok");
+      localStorage.setItem(PASS_KEY, "ok");
+      btnEnter.disabled = false;
+      openGame();
+    }
 
-      document.getElementById("btnPay").addEventListener("click", startPayment);
-    })();
+    function openGame(){
+      showGame();
+      setStatus("access granted ✔", "ok");
+    }
+    function showGate(){ gate.classList.remove("hide"); gameWrap.classList.add("hide"); }
+    function showGame(){ gate.classList.add("hide"); gameWrap.classList.remove("hide"); }
+  })();
   </script>
 </body>
 </html>
