@@ -3,19 +3,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Cashflow Game — Pay to Enter</title>
+  <title>Cashflow Game — Pay Gate + Redirect</title>
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
   <style>
     :root { --bg:#0f1221; --card:#161a30; --text:#e8e8f0; --muted:#a6adbb; --accent:#8b5cf6; }
     body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:var(--bg); color:var(--text); }
     .wrap { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px }
-    .card { width:min(720px, 100%); background:var(--card); border-radius:18px; padding:28px; box-shadow:0 10px 30px rgba(0,0,0,.35) }
+    .card { width:min(780px, 100%); background:var(--card); border-radius:18px; padding:28px; box-shadow:0 10px 30px rgba(0,0,0,.35) }
     h1 { margin:0 0 10px; font-size:26px }
     p { color:var(--muted); margin:0 0 18px }
     .row { display:flex; gap:14px; flex-wrap:wrap }
     button { background:var(--accent); border:none; color:white; padding:12px 16px; border-radius:12px; font-size:16px; cursor:pointer }
     button.secondary { background:#2b2f45 }
     .notice { font-size:14px; color:#b9c0d4 }
+    a.link { color:#ffc266; text-decoration:underline; }
     .ok { color:#19c37d; }
     .err { color:#ff5b5b; }
   </style>
@@ -24,39 +25,57 @@
   <div class="wrap">
     <div class="card">
       <h1>Cashflow Game</h1>
-      <p id="status" class="notice">Pay once, then you’ll be redirected into the game.</p>
+      <p id="status" class="notice">Pay once, then you’ll be redirected to the game.</p>
       <div class="row">
         <button id="btnPay">Pay with Pi</button>
         <button id="btnEnter" class="secondary">Enter Game (if already paid)</button>
       </div>
+      <p id="openHint" class="notice" style="display:none;">
+        Opening the game… If nothing happens, <a id="openLink" class="link" href="#">tap here</a>.
+      </p>
     </div>
   </div>
 
   <script>
     (function(){
-      const BACKEND  = "https://pi-backend-virid.vercel.app";        // your backend
-      const PRICE_PI = 1;                                             // amount in Pi
-      const MEMO     = "Cashflow Game access";                        // memo
-      const GAME_URL = "https://weikei909086-cyber.github.io";        // destination after pay
+      // ======= CONFIG (edit these) =======
+      const BACKEND  = "https://pi-backend-virid.vercel.app";   // your backend
+      const PRICE_PI = 1;                                       // amount in Pi
+      const MEMO     = "Cashflow Game access";                  // memo shown in wallet
+      const GAME_URL = "https://weikei909086-cyber.github.io/game.html"; // <-- rename your old game page to game.html
       const PASS_KEY = "cashflow_pass_v1";
+      // ===================================
 
       const status = document.getElementById("status");
+      const openHint = document.getElementById("openHint");
+      const openLink = document.getElementById("openLink");
       function setStatus(txt, cls){ status.textContent = txt; status.className = "notice " + (cls||""); }
 
+      // Ensure Pi SDK is ready
       try { window.Pi && window.Pi.init({ version: "2.0" }); } catch(_) {}
 
-      // If already paid in this browser, allow immediate entry
+      // Helper to open the game with multiple fallbacks
+      function openGameNow(){
+        try { localStorage.setItem(PASS_KEY, "ok"); } catch(_){}
+        openHint.style.display = "block";
+        openLink.href = GAME_URL;
+        // multiple attempts (Pi Browser sometimes blocks immediate replace)
+        const nav = () => { try { window.location.replace(GAME_URL); } catch(e){ window.location.href = GAME_URL; } };
+        setTimeout(nav, 100);
+        setTimeout(nav, 600);
+        setTimeout(nav, 1500);
+      }
+
+      // If already paid in this browser, allow quick entry
       if (localStorage.getItem(PASS_KEY) === "ok") {
         setStatus("Access granted ✔ You can enter the game.", "ok");
+        openHint.style.display = "block";
+        openLink.href = GAME_URL;
       }
 
       document.getElementById("btnEnter").onclick = () => {
-        // Allow manual entry if already paid
-        if (localStorage.getItem(PASS_KEY) === "ok") {
-          window.location.replace(GAME_URL);
-        } else {
-          setStatus("Please pay first to enter.", "err");
-        }
+        if (localStorage.getItem(PASS_KEY) === "ok") openGameNow();
+        else setStatus("Please pay first to enter.", "err");
       };
 
       document.getElementById("btnPay").onclick = async () => {
@@ -96,10 +115,8 @@
                   setStatus("Complete failed: " + r.status + " " + t, "err");
                   throw new Error("complete failed");
                 }
-                // Mark as paid and redirect
-                localStorage.setItem(PASS_KEY, "ok");
-                setStatus("Payment complete ✔ Redirecting…", "ok");
-                window.location.replace(GAME_URL);
+                setStatus("Payment complete ✔ Opening the game…", "ok");
+                openGameNow();
               },
               onCancel: () => setStatus("Cancelled", "err"),
               onError:  (e) => setStatus("Error: " + (e?.message || e), "err"),
