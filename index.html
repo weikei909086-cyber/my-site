@@ -1,154 +1,533 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Cashflow Game — Pay to Enter</title>
-  <!-- Pi SDK -->
-  <script src="https://sdk.minepi.com/pi-sdk.js"></script>
-  <style>
-    :root { --bg:#0f1221; --card:#161a30; --text:#e8e8f0; --muted:#a6adbb; --accent:#8b5cf6; }
-    * { box-sizing:border-box }
-    body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:var(--bg); color:var(--text); }
-    .wrap { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px }
-    .card { width:min(980px, 100%); background:var(--card); border-radius:18px; padding:28px; box-shadow:0 10px 30px rgba(0,0,0,.35) }
-    h1 { margin:0 0 10px; font-size:26px }
-    p { color:var(--muted); margin:0 0 18px }
-    .row { display:flex; gap:14px; flex-wrap:wrap }
-    button { background:var(--accent); border:none; color:white; padding:12px 16px; border-radius:12px; font-size:16px; cursor:pointer }
-    button.secondary { background:#2b2f45 }
-    button:disabled { opacity:.6; cursor:not-allowed }
-    .notice { font-size:14px; color:#b9c0d4 }
-    iframe { width:100%; height:80vh; border:0; border-radius:14px; background:#000 }
-    .hide { display:none !important }
-    .ok { color:#19c37d; }
-    .err { color:#ff5b5b; }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Pi Cashflow EDU — Rat Race to Freedom</title>
+<style>
+  :root{
+    --bg:#0c0f14; --panel:#121824; --muted:#9fb0c3; --hi:#ffd166; --ok:#46d39a; --bad:#ef476f; --ink:#eaf2ff;
+    --line:#1c2533; --btn:#1a2331; --btnHi:#233047;
+  }
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,Segoe UI,Roboto,Arial}
+  .wrap{max-width:1100px;margin:0 auto;padding:14px}
+  header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin:6px 0 12px}
+  .brand{font-weight:800;letter-spacing:.3px}
+  .pill{background:var(--panel);border:1px solid var(--line);padding:8px 12px;border-radius:999px;font-size:13px}
+  .btn{background:var(--btn);border:1px solid var(--line);padding:10px 14px;border-radius:10px;color:var(--ink);cursor:pointer}
+  .btn:hover{background:var(--btnHi)}
+  .btnHi{background:linear-gradient(180deg,#2b3a52,#1c2738);border:1px solid #2d3a51}
+  .row{display:grid;grid-template-columns:1.2fr .9fr; gap:14px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+  h2{font-size:18px;margin:0 0 10px}
+  h3{font-size:15px;margin:10px 0 6px;color:var(--muted)}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .chip{background:#0f1622;border:1px solid var(--line);padding:10px;border-radius:10px;text-align:center}
+  .chip b{display:block;font-size:18px;margin-top:2px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{padding:8px;border-bottom:1px dashed var(--line)}
+  th{color:var(--muted);font-weight:600;text-align:left}
+  .flex{display:flex;gap:8px;flex-wrap:wrap}
+  .stack{display:flex;flex-direction:column;gap:8px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .tag{font-size:12px;padding:4px 8px;border:1px solid var(--line);border-radius:999px;background:#0f1622;color:var(--muted)}
+  .hi{color:var(--hi)} .ok{color:var(--ok)} .bad{color:var(--bad)}
+  .muted{color:var(--muted)}
+  .deal{background:#0f1622;border:1px solid var(--line);padding:10px;border-radius:12px}
+  .deal h4{margin:0 0 4px}
+  input,select{background:#0e1520;border:1px solid var(--line);color:#eaf2ff;padding:10px;border-radius:10px;width:100%}
+  textarea{background:#0e1520;border:1px solid var(--line);color:#eaf2ff;padding:10px;border-radius:10px;width:100%;min-height:80px}
+  .foot{display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;margin-top:10px}
+  @media (max-width:930px){ .row{grid-template-columns:1fr} .stats{grid-template-columns:repeat(2,1fr)} }
+
+  /* Gate overlay */
+  .gate{max-width:720px;margin:40px auto 0;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px;text-align:center}
+  .gate h1{margin:0 0 8px;font-size:22px}
+  .gate p{color:var(--muted);margin:6px 0 16px}
+  .hide{display:none !important}
+</style>
+<!-- Pi SDK -->
+<script src="https://sdk.minepi.com/pi-sdk.js"></script>
 </head>
 <body>
-  <div class="wrap" id="gate">
-    <div class="card">
-      <h1>Cashflow Game Access</h1>
-      <p>Pay once, then enter the game.</p>
-      <div class="row">
-        <button id="btnPay">Pay with Pi</button>
-        <button id="btnEnter" class="secondary" disabled>Enter Game</button>
-        <button id="btnReset" class="secondary">Reset (testing)</button>
+<div class="wrap">
+
+  <!-- Top bar -->
+  <header>
+    <div class="flex" style="align-items:center;gap:10px">
+      <div class="brand">🐭 Pi Cashflow EDU</div>
+      <span class="pill" id="status">Not signed in</span>
+      <button class="btn" id="btnPi">Sign in with Pi</button>
+      <button class="btn btnHi" id="btnPay">Pay with Pi (1π)</button>
+      <button class="btn" id="btnSave">Export Save</button>
+      <label class="btn" for="imp" title="Import Save JSON">Import Save<input id="imp" type="file" accept="application/json" style="display:none"></label>
+    </div>
+    <div class="flex">
+      <button class="btn" id="btnNew">New Game</button>
+      <button class="btn btnHi" id="btnNext">Advance Month ▶</button>
+    </div>
+  </header>
+
+  <!-- Payment Gate (shown until paid) -->
+  <section id="gate" class="gate">
+    <h1>Unlock the Game</h1>
+    <p>Pay <b>1π</b> to access the Cashflow board. After a successful payment, the game will load instantly on this device.</p>
+    <div class="flex" style="justify-content:center">
+      <button class="btn btnHi" id="btnPayGate">Pay with Pi (1π)</button>
+    </div>
+    <p style="margin-top:10px" class="muted">Note: Please open this page inside the <b>Pi Browser</b> and sign in to your Pi account.</p>
+  </section>
+
+  <!-- GAME AREA (hidden until payment completed) -->
+  <div id="gameRoot" class="hide">
+    <div class="stats">
+      <div class="chip">Cash <b id="cash">$0</b></div>
+      <div class="chip">Passive Income <b id="passive">$0</b></div>
+      <div class="chip">Total Expenses <b id="expenses">$0</b></div>
+      <div class="chip">Freedom? <b id="freedom">No</b></div>
+    </div>
+
+    <div class="row" style="margin-top:12px">
+      <section class="panel">
+        <h2>Rat Race Board (turn-based)</h2>
+        <div class="flex">
+          <span class="tag">Month: <span id="month">1</span></span>
+          <span class="tag">Career: <span id="career">Junior Marketer</span></span>
+          <span class="tag">Salary: $<span id="salary">2500</span></span>
+          <span class="tag">Stash %: <span id="saveRate">10%</span></span>
+        </div>
+
+        <h3>This Month’s Card</h3>
+        <div id="card" class="deal">
+          <h4>—</h4>
+          <div class="muted">Click “Advance Month” to draw a card.</div>
+        </div>
+
+        <div class="foot">
+          <div class="flex">
+            <button class="btn" id="btnBuy">Buy / Invest</button>
+            <button class="btn" id="btnSell">Sell Asset</button>
+            <button class="btn" id="btnLoan">Take Loan</button>
+            <button class="btn" id="btnPayDebt">Pay Down Debt</button>
+          </div>
+          <div class="muted" id="tip">Tip: Grow assets that pay you monthly. Avoid doodads that only cost you.</div>
+        </div>
+      </section>
+
+      <aside class="panel stack">
+        <div>
+          <h2>Income Statement</h2>
+          <table>
+            <tbody id="tIncome"></tbody>
+            <tfoot><tr><th>Total Income</th><th id="totalIncome" style="text-align:right">$0</th></tr>
+                   <tr><th>Total Expenses</th><th id="totalOut" style="text-align:right">$0</th></tr>
+                   <tr><th>Cashflow</th><th id="net" style="text-align:right">$0</th></tr></tfoot>
+          </table>
+        </div>
+        <div>
+          <h2>Balance Sheet</h2>
+          <div class="grid2">
+            <div>
+              <h3>Assets</h3>
+              <table><tbody id="tAssets"></tbody></table>
+            </div>
+            <div>
+              <h3>Liabilities</h3>
+              <table><tbody id="tDebts"></tbody></table>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <section class="panel" style="margin-top:12px">
+      <h2>Actions</h2>
+      <div class="grid2">
+        <div>
+          <h3>Add Investment (manual)</h3>
+          <div class="grid2">
+            <input id="inName" placeholder="e.g., Rental Condo A">
+            <input id="inCost" type="number" placeholder="Buy Price (positive)">
+            <input id="inIncome" type="number" placeholder="Monthly Income (+) or Expense (-)">
+            <input id="inDebt" type="number" placeholder="Loan added (0 if none)">
+          </div>
+          <div class="foot"><button class="btn" id="addInv">Add Asset</button><span class="muted">Use for custom deals or outside income.</span></div>
+        </div>
+        <div>
+          <h3>Education Notes</h3>
+          <textarea id="notes" placeholder="Jot lessons learned, rules you follow, or goals for passive income."></textarea>
+          <div class="foot"><button class="btn" id="saveNotes">Save Notes</button><span class="muted">Saved locally with your game.</span></div>
+        </div>
       </div>
-      <p class="notice" id="status">Status: waiting</p>
-    </div>
+    </section>
   </div>
+</div>
 
-  <div class="wrap hide" id="gameWrap">
-    <div class="card">
-      <h1>Cashflow Game</h1>
-      <p class="notice ok">Access granted ✔</p>
-      <!-- Replace GAME_URL below with your real game page -->
-      <iframe id="gameFrame" src="https://weikei909086-cyber.github.io"></iframe>
-    </div>
-  </div>
+<!-- Top info bar suggesting Pi Browser if SDK missing -->
+<script>
+(function(){
+  const bar = document.createElement('div');
+  bar.id = 'piWarn';
+  bar.style.cssText = "position:fixed;top:0;left:0;right:0;background:#2b3446;color:#ffd166;border-bottom:1px solid #3a465c;padding:8px 12px;font:600 13px/1.3 system-ui, -apple-system, Segoe UI; z-index:99999; text-align:center;";
+  function show(){ if(!document.getElementById('piWarn')) document.body.appendChild(bar); }
+  function hide(){ const n = document.getElementById('piWarn'); if(n) n.remove(); }
+  function update(){ if(window.Pi){ hide(); } else { show(); bar.textContent = "Tip: Open this page in the Pi Browser app and make sure you are signed in, then tap ‘Sign in with Pi’."; } }
+  setTimeout(update, 300);
+  window.addEventListener('load', update);
+})();
+</script>
 
-  <script>
-  (function(){
-    // ======= CONFIG =======
-    const BACKEND  = "https://pi-backend-virid.vercel.app"; // your Node backend on Vercel
-    const PRICE_PI = 1;                                     // charge amount in Pi
-    const MEMO     = "Cashflow Game access";                // payment memo
-    // ======================
+<script>
+/* ------------------------------
+   Game logic & state (from game page)
+--------------------------------- */
+const KEY="pi_cashflow_edu_v1";
+const defaultState = () => ({
+  month:1,
+  user:{piUid:null, username:"Guest"},
+  career:"Junior Marketer",
+  salary:2500,
+  saveRate:0.10,
+  cash:3000,
+  assets:[],          // {id,name,cost,monthly}
+  liabilities:[],     // {id,name,balance,rate,monthly}
+  history:[],
+  notes:"",
+  lastCard:null,
+  fastTrack:false
+});
+let S = load();
+function load(){
+  try{ return Object.assign(defaultState(), JSON.parse(localStorage.getItem(KEY) || "{}")); }
+  catch(_){ return defaultState(); }
+}
+function persist(){ localStorage.setItem(KEY, JSON.stringify(S)); }
+const $ = id => document.getElementById(id);
+const money = n => "$" + (Math.round(n).toLocaleString());
+function toast(msg){
+  const t = document.createElement("div");
+  t.textContent = msg;
+  t.style.cssText = "position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#0f1622;border:1px solid #263149;padding:10px 14px;border-radius:999px;color:#eaf2ff;z-index:9999;opacity:0;transition:opacity .15s";
+  document.body.appendChild(t);
+  setTimeout(()=>t.style.opacity=1,10);
+  setTimeout(()=>{t.style.opacity=0;setTimeout(()=>t.remove(),150);},2300);
+}
+function recompute(){
+  const incRows = [{k:"Salary", v:S.salary}].concat(S.assets.filter(a=>a.monthly>0).map(a=>({k:a.name, v:a.monthly})));
+  const expRows = S.assets.filter(a=>a.monthly<0).map(a=>({k:a.name, v:Math.abs(a.monthly)})).concat(S.liabilities.map(d=>({k:d.name+" (loan)", v:d.monthly})));
+  const totalInc = incRows.reduce((a,b)=>a+b.v,0);
+  const totalOut = expRows.reduce((a,b)=>a+b.v,0);
+  const net = totalInc - totalOut;
+  $("cash").textContent = money(S.cash);
+  const passive = S.assets.filter(a=>a.monthly>0).reduce((a,b)=>a+b.monthly,0);
+  $("passive").textContent = money(passive);
+  $("expenses").textContent = money(totalOut);
+  $("freedom").innerHTML = (passive>=totalOut && totalOut>0) ? "<span class='ok'>YES</span>" : "No";
+  $("tIncome").innerHTML = incRows.map(r=>`<tr><td>${r.k}</td><td style="text-align:right">${money(r.v)}</td></tr>`).join("") || "<tr><td class='muted'>—</td><td></td></tr>";
+  $("tAssets").innerHTML = S.assets.map(a=>`<tr><td>${a.name}</td><td style="text-align:right">${money(a.monthly)} / mo</td></tr>`).join("") || "<tr><td class='muted'>—</td></tr>";
+  $("tDebts").innerHTML = S.liabilities.map(d=>`<tr><td>${d.name} — ${money(d.balance)} @ ${(d.rate*100).toFixed(1)}%</td><td style='text-align:right'>${money(d.monthly)}</td></tr>`).join("") || "<tr><td class='muted'>—</td></tr>";
+  $("totalIncome").textContent = money(totalInc);
+  $("totalOut").textContent = money(totalOut);
+  $("net").textContent = money(net);
+  $("month").textContent = S.month;
+  $("career").textContent = S.career;
+  $("salary").textContent = S.salary;
+  $("saveRate").textContent = Math.round(S.saveRate*100)+"%";
+  persist();
+  return {totalInc,totalOut,net,passive};
+}
+const Cards = {
+  smallOpp:[
+    ["Dividend Stock", 500, 15, "Steady blue-chip dividend."],
+    ["Peer Lending", 400, 18, "Diversified microloans."],
+    ["REIT Fraction", 800, 30, "Property trust payout."],
+    ["Vending Side Biz", 1500, 65, "Two machines at a gym."]
+  ],
+  bigOpp:[
+    ["Rental Condo", 20000, 450, "Buy-and-rent in midtown."],
+    ["Laundry Shop", 30000, 700, "Self-serve with attendants."],
+    ["Food Kiosk", 12000, 260, "Mall footfall is decent."]
+  ],
+  doodad:[
+    ["New Phone", -900, 0, "Latest flagship. Shiny, not an asset."],
+    ["Holiday Trip", -1500, 0, "Great memories, zero cashflow."],
+    ["Car Rims", -800, 0, "Looks cool, drains wallet."]
+  ],
+  market:[
+    ["Rent Up", 0, 0, "Rental market up. +10% rent on properties this month.", {type:"rentUp"}],
+    ["Repair Bills", -300, 0, "Unexpected fixes on assets.", {type:"repair"}],
+    ["Rate Cut", 0, 0, "Loan interest -0.5% for new loans (temp).", {type:"rateCut"}]
+  ]
+};
+function updateCardUI(c){
+  const box = $("card");
+  box.innerHTML = `<h4>${c.type}: ${c.name}</h4>
+    <div>${c.text}</div>
+    <div style="margin-top:6px" class="muted">${c.cost<0? "Cost: "+money(Math.abs(c.cost)) : "Buy-in: "+money(c.cost)} • Monthly impact: <b>${money(c.monthly)}</b></div>
+    <div style="margin-top:8px" class="flex"><span class="tag">You can choose to act or pass.</span></div>`;
+  if(c.type.includes("Opportunity")) $("tip").textContent = "Evaluate ROI: monthly cashflow ÷ cash invested. Aim for positive cashflow assets.";
+  else if(c.type==="Doodad") $("tip").textContent = "Doodads take money from your pocket each month. Keep them rare and small.";
+  else $("tip").textContent = "Market events change parameters. Adapt without breaking your cash position.";
+}
+function drawCard(){
+  const r = Math.random();
+  let type, pool;
+  if(r < 0.45){ type="Small Opportunity"; pool=Cards.smallOpp; }
+  else if(r < 0.7){ type="Doodad"; pool=Cards.doodad; }
+  else if(r < 0.88){ type="Big Opportunity"; pool=Cards.bigOpp; }
+  else { type="Market"; pool=Cards.market; }
+  const raw = pool[Math.floor(Math.random()*pool.length)];
+  const card = {type, name:raw[0], cost:raw[1], monthly:raw[2], text:raw[3], meta:raw[4]||null};
+  S.lastCard = card;
+  updateCardUI(card);
+  persist();
+  return card;
+}
+function nextMonth(){
+  const {totalOut} = recompute();
+  S.cash += S.salary;          // salary in
+  S.cash -= totalOut;          // pay expenses/loans
+  S.liabilities.forEach(d=>{  // accrue interest (simple)
+    const interest = (d.rate/12)*d.balance;
+    d.balance += interest;
+  });
+  S.month++;
+  const c = drawCard();
+  if(c.type==="Doodad"){ S.cash += c.cost; } // cost negative
+  if(c.type==="Market" && c.meta){
+    if(c.meta.type==="repair"){ S.cash -= 300; toast("🔧 Repair bills: -$300"); }
+  }
+  recompute();
+  persist();
+}
+/* Actions */
+function bootGameUI(){
+  $("btnBuy").onclick = () => {
+    let c = S.lastCard;
+    if(!c || !(c.type.includes("Opportunity"))) { toast("No active opportunity. Advance month to draw a card."); return; }
+    if(S.cash < c.cost){ toast("Not enough cash. Consider a loan or cheaper deal."); return; }
+    S.cash -= c.cost;
+    S.assets.push({id:crypto.randomUUID(), name:c.name, cost:c.cost, monthly:c.monthly});
+    toast("✅ Bought: "+c.name+" • "+money(c.monthly)+"/mo");
+    recompute();
+  };
+  $("btnSell").onclick = () => {
+    if(S.assets.length===0){ toast("No assets to sell."); return; }
+    const idx = prompt("Enter asset # to sell (1.."+S.assets.length+"):\n"+S.assets.map((a,i)=> (i+1)+". "+a.name+" — "+money(a.monthly)+"/mo").join("\n"));
+    const k = parseInt(idx||"0")-1; if(!(k>=0 && k<S.assets.length)) return;
+    const a = S.assets.splice(k,1)[0];
+    const resale = Math.round(a.cost*0.9);
+    S.cash += resale;
+    toast("💸 Sold "+a.name+" for "+money(resale));
+    recompute();
+  };
+  $("btnLoan").onclick = () => {
+    const amt = parseFloat(prompt("Loan amount (principal):", "5000")||"0");
+    if(!(amt>0)) return;
+    const rate = 0.12; // 12% APR
+    const monthly = Math.round((rate/12)*amt + (amt/60)); // approx 5y
+    S.cash += amt;
+    S.liabilities.push({id:crypto.randomUUID(), name:"Bank Loan", balance:amt, rate, monthly});
+    toast("🏦 Loan received: "+money(amt));
+    recompute();
+  };
+  $("btnPayDebt").onclick = () => {
+    if(S.liabilities.length===0){ toast("No debts to pay."); return; }
+    const idx = prompt("Enter debt # to pay down (1.."+S.liabilities.length+"):\n"+S.liabilities.map((d,i)=> (i+1)+". "+d.name+" — bal "+money(d.balance)).join("\n"));
+    const k = parseInt(idx||"0")-1; if(!(k>=0 && k<S.liabilities.length)) return;
+    const d = S.liabilities[k];
+    const amt = parseFloat(prompt("Payment amount (<= cash)", String(Math.min(S.cash, Math.round(d.balance))))||"0");
+    if(!(amt>0) || amt>S.cash) return;
+    S.cash -= amt;
+    d.balance -= amt;
+    if(d.balance<=0){ S.liabilities.splice(k,1); toast("🎉 Debt fully paid!"); }
+    else { toast("⬇️ Paid down "+money(amt)); }
+    recompute();
+  };
+  $("addInv").onclick = () => {
+    const name = $("inName").value.trim();
+    const cost = parseFloat($("inCost").value||"0");
+    const monthly = parseFloat($("inIncome").value||"0");
+    const debt = parseFloat($("inDebt").value||"0");
+    if(!name) return toast("Name required.");
+    if(cost>0 && S.cash<cost) return toast("Not enough cash for purchase price.");
+    S.cash -= Math.max(0,cost);
+    if(debt>0){ S.liabilities.push({id:crypto.randomUUID(), name:"Custom Loan", balance:debt, rate:0.12, monthly:Math.round((0.12/12)*debt + (debt/60))}); S.cash += debt; }
+    S.assets.push({id:crypto.randomUUID(), name, cost:Math.max(0,cost), monthly});
+    $("inName").value = $("inCost").value = $("inIncome").value = $("inDebt").value = "";
+    toast("✅ Added asset: "+name);
+    recompute();
+  };
+  $("saveNotes").onclick = () => { S.notes = $("notes").value; persist(); toast("📝 Notes saved."); };
+  $("btnSave").onclick = () => {
+    const blob = new Blob([JSON.stringify(S,null,2)], {type:"application/json"});
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+    a.download = "pi-cashflow-save.json"; a.click(); URL.revokeObjectURL(a.href);
+  };
+  $("imp").addEventListener("change", ev => {
+    const f = ev.target.files[0]; if(!f) return;
+    const r = new FileReader();
+    r.onload = () => { try{ S = Object.assign(defaultState(), JSON.parse(r.result)); persist(); initUI(); toast("✅ Save imported."); }catch(e){ alert("Import failed."); } };
+    r.readAsText(f);
+  });
+  $("btnNew").onclick = () => { if(confirm("Start a new game? This overwrites your current progress.")){ S = defaultState(); persist(); initUI(); } };
+  $("btnNext").onclick = () => nextMonth();
+}
+function initUI(){
+  $("status").textContent = S.user.username ? ("Signed in as "+S.user.username) : "Not signed in";
+  const gatePaid = localStorage.getItem("pi_cashflow_paid") === "true";
+  if (gatePaid){ document.getElementById("gate").classList.add("hide"); document.getElementById("gameRoot").classList.remove("hide"); }
+  $("notes").value = S.notes || "";
+  if(S.lastCard) updateCardUI(S.lastCard);
+  recompute();
+}
+</script>
 
-    const $ = (id) => document.getElementById(id);
-    const status = $("status");
-    function setStatus(txt, cls){ status.textContent = "Status: " + txt; status.className = "notice " + (cls||""); }
+<script>
+/* ------------------------------
+   Pi Auth + Payment Gate (from working payment page)
+--------------------------------- */
+(function () {
+  // IMPORTANT: replace with your deployed backend
+  const BACKEND = "https://pi-backend-virid.vercel.app";
+  const AMOUNT = 1;
+  const MEMO = "Pi Cashflow EDU access";
 
-    const btnPay   = $("btnPay");
-    const btnEnter = $("btnEnter");
-    const btnReset = $("btnReset");
-    const gate     = $("gate");
-    const gameWrap = $("gameWrap");
+  let retrying = false;
 
-    // Show game if already paid in this browser (simple pass)
-    const PASS_KEY = "cashflow_pass_v1";
-    if (localStorage.getItem(PASS_KEY) === "ok") {
-      openGame();
-    }
+  function delay(ms){ return new Promise(r => setTimeout(r, ms)); }
+  function toast2(msg){ try{ alert(msg); }catch(_){} }
 
-    try { window.Pi && window.Pi.init({ version: "2.0" }); } catch(_) {}
+  // Initialize Pi SDK
+  try { window.Pi && window.Pi.init({ version: "2.0" }); } catch (_) {}
 
-    btnReset.onclick = () => { localStorage.removeItem(PASS_KEY); btnEnter.disabled = true; showGate(); setStatus("reset; please pay to enter"); };
-
-    btnEnter.onclick = () => openGame();
-
-    btnPay.onclick = async () => {
-      const PiRef = window.Pi;
-      if (!PiRef) { alert("Open this page inside the Pi Browser app."); return; }
-
-      try {
-        setStatus("authenticating…");
-        await PiRef.authenticate(["payments"], () => {});
-
-        setStatus("creating payment…");
-        await PiRef.createPayment(
-          { amount: PRICE_PI, memo: MEMO, metadata: { product: "cashflow-pass", ts: Date.now() } },
-          {
-            onReadyForServerApproval: approveFast,
-            onReadyForServerCompletion: completeFast,
-            onCancel: () => setStatus("cancelled", "err"),
-            onError:  (e) => setStatus("error: " + (e?.message||e), "err"),
-          }
-        );
-      } catch (err){
-        setStatus("error: " + (err?.message||err), "err");
-      }
-    };
-
-    async function approveFast(paymentId){
-      setStatus("requesting approval…");
-      const ctl = new AbortController();
-      const to  = setTimeout(()=>ctl.abort(), 10000);
+  async function approveFast(paymentId){
+    // quick approval attempt with 8s timeout
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 8000);
+    try {
       const r = await fetch(BACKEND + "/approve", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ paymentId }),
         signal: ctl.signal
       });
-      clearTimeout(to);
-      if (!r.ok){
-        const t = await r.text();
-        if (t.includes("cancelled_payment")){
-          setStatus("expired; please try again", "err");
-        } else {
-          setStatus("approve failed: " + r.status + " " + t, "err");
+      clearTimeout(t);
+      if (!r.ok) {
+        const text = await r.text();
+        if (text.includes("cancelled_payment")){
+          throw new Error("CANCELLED");
         }
-        throw new Error("approve failed");
+        throw new Error("Approve failed: " + r.status + " " + text);
       }
-      setStatus("approved — waiting for wallet confirmation…");
+    } catch(err){
+      clearTimeout(t);
+      throw err;
     }
+  }
 
-    async function completeFast(paymentId, txid){
-      setStatus("finalizing…");
-      const r = await fetch(BACKEND + "/complete", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ paymentId, txid })
-      });
-      if (!r.ok){
-        const t = await r.text();
-        setStatus("complete failed: " + r.status + " " + t, "err");
-        throw new Error("complete failed");
-      }
-      setStatus("payment complete ✔","ok");
-      localStorage.setItem(PASS_KEY, "ok");
-      btnEnter.disabled = false;
-      openGame();
+  async function complete(paymentId, txid){
+    const r = await fetch(BACKEND + "/complete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paymentId, txid })
+    });
+    if (!r.ok){
+      const text = await r.text();
+      throw new Error("Complete failed: " + r.status + " " + text);
     }
+  }
 
-    function openGame(){
-      showGame();
-      setStatus("access granted ✔", "ok");
+  async function startPayment(){
+    const PiRef = window.Pi;
+    if (!PiRef){ toast2("Open this page inside the Pi Browser app."); return; }
+
+    try {
+      await PiRef.authenticate(["payments"], () => {});
+
+      await PiRef.createPayment(
+        { amount: AMOUNT, memo: MEMO, metadata: { app: "cashflow", ts: Date.now() } },
+        {
+          onReadyForServerApproval: async (paymentId) => {
+            try {
+              await approveFast(paymentId);
+            } catch(e){
+              if (("" + e.message).includes("CANCELLED")){
+                if (!retrying){
+                  retrying = true;
+                  toast2("Payment expired — retrying...");
+                  await delay(600);
+                  await startPayment();
+                } else {
+                  toast2("Payment expired again. Please try once more.");
+                }
+                throw e;
+              } else {
+                toast2(e.message || e);
+                throw e;
+              }
+            }
+          },
+          onReadyForServerCompletion: async (paymentId, txid) => {
+            await complete(paymentId, txid);
+            retrying = false;
+            // Mark paid and unlock the game
+            localStorage.setItem("pi_cashflow_paid", "true");
+            document.getElementById("gate").classList.add("hide");
+            document.getElementById("gameRoot").classList.remove("hide");
+            toast2("✅ Payment completed! Enjoy the game.");
+          },
+          onCancel: () => { retrying = false; console.log("User cancelled"); },
+          onError:  (e) => { retrying = false; console.error(e); toast2("Payment error: " + (e?.message || e)); },
+        }
+      );
+    } catch (err){
+      retrying = false;
+      console.error(err);
+      toast2("Payment flow failed: " + (err?.message || err));
     }
-    function showGate(){ gate.classList.remove("hide"); gameWrap.classList.add("hide"); }
-    function showGame(){ gate.classList.add("hide"); gameWrap.classList.remove("hide"); }
-  })();
-  </script>
+  }
+
+  // Hook both Pay buttons (header + gate)
+  const payHeader = document.getElementById("btnPay");
+  const payGate = document.getElementById("btnPayGate");
+  if (payHeader) payHeader.addEventListener("click", startPayment);
+  if (payGate) payGate.addEventListener("click", startPayment);
+
+  // Pi Sign-in (optional, username scope)
+  async function doPiAuth(){
+    const PiRef = window.Pi;
+    if(!PiRef){ alert("Pi SDK not available. Open this page in the Pi Browser app, then reload."); return; }
+    try{
+      try{ PiRef.init({version:"2.0"}); }catch(_){}
+      const scopes = ["username"];
+      const user = await PiRef.authenticate(scopes, (e)=>console.log("incomplete",e));
+      S.user.piUid = user.uid;
+      S.user.username = user.username || "Pioneer";
+      $("status").textContent = "Signed in as @"+S.user.username;
+      persist();
+    }catch(e){
+      console.error("Pi auth error:", e);
+      alert("Pi sign-in failed: " + (e && e.message ? e.message : e));
+    }
+  }
+  document.getElementById("btnPi").addEventListener("click", doPiAuth);
+
+  // On load: show gate or game if already paid on this device
+  window.addEventListener("load", () => {
+    initUI();
+    const paid = localStorage.getItem("pi_cashflow_paid") === "true";
+    if (paid){
+      document.getElementById("gate").classList.add("hide");
+      document.getElementById("gameRoot").classList.remove("hide");
+      bootGameUI();
+    } else {
+      // Gate visible; game still initializes behind the scenes after payment
+      bootGameUI();
+    }
+  });
+})();
+</script>
+
 </body>
 </html>
